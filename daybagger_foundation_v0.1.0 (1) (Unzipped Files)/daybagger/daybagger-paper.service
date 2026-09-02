@@ -1,0 +1,15 @@
+[Unit]
+Description=Daybagger Paper Runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/daybagger
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/daybagger/.venv/bin/python scripts/check_runtime.py
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

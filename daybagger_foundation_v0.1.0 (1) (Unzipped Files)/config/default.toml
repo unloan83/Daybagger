@@ -1,0 +1,16 @@
+[app]
+name = "Daybagger"
+environment = "development"
+trading_mode = "paper"
+timezone = "Asia/Kolkata"
+log_level = "INFO"
+
+[capital]
+starting_capital_inr = 30000.0
+
+[storage]
+control_db_path = "data/daybagger_control.sqlite3"
+
+[execution]
+max_quote_age_seconds = 15
+paper_slippage_bps = 0.0

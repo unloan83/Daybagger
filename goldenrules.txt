@@ -1,0 +1,88 @@
+# DAYBAGGER — STRATEGY & GOLDEN RULES
+
+## Core Objective
+
+Build wealth through Indian equity intraday trading using technology, broad intelligence, predictive analytics and continuous learning—not fixed indicator rules or manual-style trading.
+
+## Strategy
+
+Daybagger is a **multi-source Indian Equity Meta-Intelligence Engine**.
+
+It will:
+
+* Scan the liquid Indian equity market broadly.
+* Combine market, sector, stock, institutional, F&O/OI, volatility, global, news/event, historical and microstructure intelligence.
+* Use multiple proven specialist strategies/models instead of relying on one strategy.
+* Detect the current market regime and determine which strategies/signals are most reliable in that regime.
+* Predict and rank opportunities by **probability, expected net return, risk and execution quality**.
+* Allocate capital only to the best opportunities.
+* Learn from trades, rejected opportunities and changing market behaviour.
+
+## Golden Rules
+
+1. **India First**
+   Everything must be designed and validated specifically for NSE/Indian market behaviour.
+
+2. **Equity Only for V1**
+   Daybagger trades cash equities. Other markets, indices, F&O/OI, VIX, global markets, etc. may be used freely as intelligence inputs.
+
+3. **No Intelligence Restrictions**
+   Use any lawful information that improves prediction or execution: price, volume, breadth, sectors, NIFTY, VIX, institutional activity, F&O/OI, global cues, GIFT NIFTY, news, events, corporate actions, order book, historical analogues, expert strategies and quantitative models.
+
+4. **Technology Must Create the Edge**
+   Exploit capabilities humans cannot efficiently replicate: market-wide simultaneous scanning, historical comparison, regime detection, cross-sectional ranking, predictive probability, rapid information fusion and automated learning.
+
+5. **No Single-Strategy Dependency**
+   Momentum, pullback, relative strength, catalyst/news, sector rotation, mean reversion, microstructure and other validated strategies are specialist inputs. Daybagger decides which strategy deserves capital under current conditions.
+
+6. **Evidence Over Indicators**
+   No RSI/MACD/ADX/RVOL stacking or arbitrary confidence scores. Every meaningful metric, formula, filter or strategy must prove usefulness on Indian historical and out-of-sample data.
+
+7. **Same Logic Everywhere**
+   Live trading, replay, backtest and learning must use the same strategy implementation. No separate “backtest logic” and “live logic.”
+
+8. **No Fake Data or Fake Evidence**
+   Missing or invalid information means `NO TRADE / INSUFFICIENT EVIDENCE`. Never manufacture candles, bid/ask, win rates, confirmations or backtest results.
+
+9. **Adaptive, Not Unstable**
+   Daybagger learns which signals work by regime, sector, time and event type. Weak signals are down-weighted; stronger ones gain influence. Production changes occur only after replay/out-of-sample validation.
+
+10. **Wealth Building, Not Daily Gambling**
+    Starting capital ≈ ₹30,000. Profit/loss targets are operating objectives, not reasons to force trades. Losses are recovered through future high-quality opportunities—not martingale, revenge trading or reckless sizing.
+
+11. **Risk Is Relative to Opportunity**
+    Capital allocation depends on expected edge, confidence, volatility, liquidity, drawdown and current portfolio state—not crude fixed trade-count rules.
+
+12. **Execution Quality Matters**
+    A good prediction is worthless if spread, slippage, charges or liquidity destroy the edge. Rank opportunities by expected **net** return after realistic trading costs.
+
+13. **Self-Learning Is Mandatory**
+    Learn from both executed and rejected opportunities. Measure what subsequently happened, identify missed opportunities and bad filters, propose improvements, validate them, then promote only proven changes.
+
+14. **Keep Architecture Lean**
+    One canonical data layer, decision engine, execution engine, risk engine, ledger and learning loop. No duplicate runtimes, competing paper engines or unnecessary complexity.
+
+15. **Reuse Before Rebuilding**
+    Leverage proven libraries, market data, existing infrastructure, published strategies, external intelligence and validated components. Custom engineering should focus on information fusion, prediction, ranking, capital allocation and learning.
+
+16. **Always-Free First**
+    Architecture must remain within free/always-free resources wherever feasible. Avoid paid infrastructure or data dependencies unless explicitly approved. Use OCI/GitHub/Upstox/free sources efficiently.
+
+## Daybagger Decision Flow
+
+ALL AVAILABLE INTELLIGENCE
+→ MARKET REGIME
+→ MULTIPLE SPECIALIST MODELS
+→ PREDICTIVE META-ENGINE
+→ EXPECTED-VALUE RANKING
+→ BEST EQUITY OPPORTUNITIES
+→ CAPITAL & RISK ALLOCATION
+→ EXECUTION
+→ P&L / OUTCOME
+→ CONTINUOUS EVIDENCE-BASED LEARNING
+
+## Ultimate Principle
+
+**Daybagger must become smarter from evidence, not more complicated from patches.**
+
+This is the version I would use as the permanent reference whenever we design or review Daybagger.

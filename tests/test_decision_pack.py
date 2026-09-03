@@ -5,7 +5,6 @@ from uuid import uuid4
 
 import pytest
 
-from daybagger.decision.ensemble import EvidenceWeightedEnsemble
 from daybagger.decision.learning import ModelLearningStore
 from daybagger.decision.model import ValidatedLinearModel, ValidatedModelSpec
 from daybagger.decision.replay import DecisionSnapshot
@@ -37,38 +36,6 @@ def test_validated_model_requires_features_and_validation_id() -> None:
     )
     assert opinion is not None
     assert 0 <= opinion.probability <= 1
-
-
-def test_ensemble_requires_positive_net_edge_after_costs() -> None:
-    opinion = ModelOpinion.create(
-        model_id="m1",
-        model_version="1",
-        symbol="AAA",
-        direction=Direction.LONG,
-        as_of=NOW,
-        horizon_minutes=30,
-        probability=0.7,
-        expected_return_bps=25,
-        evidence_ids=[],
-    )
-    ensemble = EvidenceWeightedEnsemble()
-
-    yes = ensemble.rank(
-        symbol="AAA",
-        as_of=NOW,
-        opinions=[opinion],
-        model_weights={"m1": 1.0},
-        estimated_round_trip_cost_bps=10,
-    )
-    no = ensemble.rank(
-        symbol="AAA",
-        as_of=NOW,
-        opinions=[opinion],
-        model_weights={"m1": 1.0},
-        estimated_round_trip_cost_bps=30,
-    )
-    assert yes.status == DecisionStatus.QUALIFIED
-    assert no.status == DecisionStatus.REJECTED
 
 
 def test_drawdown_never_increases_risk() -> None:
@@ -125,9 +92,17 @@ def test_learning_uses_real_outcomes_and_zeroes_negative_expectancy(tmp_path: Pa
         realised_net_return_bps=-20,
         favourable_outcome=False,
     )
+    # Stability guard: one lucky observation must never enter production.
     weights = store.weights()
-    assert weights["good"] > 0
+    assert weights["good"] == 0
     assert weights["bad"] == 0
+
+    for _ in range(25):
+        store.record(
+            model_id="good", probability=0.7, predicted_return_bps=30,
+            realised_net_return_bps=20, favourable_outcome=True,
+        )
+    assert store.weights()["good"] > 0
 
 
 def test_replay_hash_is_deterministic() -> None:
@@ -146,3 +121,96 @@ def test_replay_hash_is_deterministic() -> None:
         decision_payload={"status": "QUALIFIED"},
     )
     assert a.stable_hash() == b.stable_hash()
+
+
+def test_allocator_reservation_and_hard_limits_are_portfolio_aware() -> None:
+    Opportunity = __import__("daybagger.domain", fromlist=["Opportunity"]).Opportunity
+    op = Opportunity.create(
+        symbol="AAA",
+        direction=Direction.LONG,
+        as_of=NOW,
+        expected_net_return_bps=80,
+        confidence=0.9,
+        status=DecisionStatus.QUALIFIED,
+        reason="test",
+        opinion_ids=[],
+    )
+    allocator = AdaptiveCapitalAllocator(
+        base_risk_fraction=0.02,
+        max_risk_fraction=0.02,
+        max_position_fraction=0.5,
+        hard_daily_loss_limit_inr=Decimal("1000"),
+        max_aggregate_open_risk_inr=Decimal("700"),
+    )
+    capital = CapitalState(
+        equity_inr=Decimal("30000"),
+        available_cash_inr=Decimal("30000"),
+        peak_equity_inr=Decimal("30000"),
+        open_risk_inr=Decimal("0"),
+        daily_net_pnl_inr=Decimal("0"),
+    )
+    first = allocator.allocate(opportunity=op, capital=capital, estimated_volatility_bps=100)
+    assert first.approved
+    reserved = capital.reserve(capital_inr=first.capital_inr, risk_inr=first.max_loss_inr)
+    assert reserved.available_cash_inr == Decimal("15000.0")
+    assert reserved.open_risk_inr == first.max_loss_inr
+
+    blocked_loss = allocator.allocate(
+        opportunity=op,
+        capital=CapitalState(
+            equity_inr=Decimal("29000"), available_cash_inr=Decimal("29000"),
+            peak_equity_inr=Decimal("30000"), daily_net_pnl_inr=Decimal("-1000"),
+        ),
+        estimated_volatility_bps=100,
+    )
+    assert not blocked_loss.approved
+    assert blocked_loss.reason == "DAILY_LOSS_LIMIT_REACHED"
+
+    blocked_risk = allocator.allocate(
+        opportunity=op,
+        capital=CapitalState(
+            equity_inr=Decimal("30000"), available_cash_inr=Decimal("15000"),
+            peak_equity_inr=Decimal("30000"), open_risk_inr=Decimal("700"),
+        ),
+        estimated_volatility_bps=100,
+    )
+    assert not blocked_risk.approved
+    assert blocked_risk.reason == "AGGREGATE_OPEN_RISK_LIMIT_REACHED"
+
+
+def test_execution_sizer_returns_integer_quantity_and_rechecks_actual_costs() -> None:
+    from daybagger.decision.risk import AllocationDecision, ExecutionSizer
+    from daybagger.domain import ExecutableQuote, Opportunity
+
+    op = Opportunity.create(
+        symbol="AAA", direction=Direction.LONG, as_of=NOW,
+        expected_net_return_bps=100, confidence=0.8,
+        status=DecisionStatus.QUALIFIED, reason="test", opinion_ids=[],
+    )
+    allocation = AllocationDecision(
+        approved=True, reason="test", capital_inr=Decimal("10000"),
+        max_loss_inr=Decimal("300"), risk_fraction=0.01,
+    )
+    q = ExecutableQuote(
+        symbol="AAA", as_of=NOW, bid=Decimal("99.90"),
+        ask=Decimal("100.00"), last=Decimal("99.95"),
+    )
+    sized = ExecutionSizer().size(
+        opportunity=op,
+        allocation=allocation,
+        quote=q,
+        estimated_volatility_bps=100,
+        slippage_bps=2,
+    )
+    assert sized.approved
+    assert isinstance(sized.quantity, int) and sized.quantity > 0
+    assert sized.entry_notional_inr <= allocation.capital_inr
+    assert sized.estimated_adverse_loss_inr + sized.estimated_round_trip_cost_inr <= allocation.max_loss_inr
+
+
+def test_small_sample_learning_uses_student_t_not_fixed_normal_bound() -> None:
+    from daybagger.decision.learning import _student_t_critical_95
+
+    assert _student_t_critical_95(19) > 1.96
+    assert _student_t_critical_95(99) < _student_t_critical_95(19)
+    assert _student_t_critical_95(9999) == pytest.approx(1.96, abs=0.001)

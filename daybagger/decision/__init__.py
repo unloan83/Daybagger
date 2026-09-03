@@ -1,7 +1,6 @@
-"""Daybagger decision layer: validated specialists, ensemble ranking, allocation and learning."""
+"""Daybagger decision layer: validated models, risk, learning and replay."""
 
 from daybagger.decision.model import ValidatedLinearModel, ValidatedModelSpec
-from daybagger.decision.ensemble import EvidenceWeightedEnsemble
 from daybagger.decision.risk import AdaptiveCapitalAllocator, CapitalState, AllocationDecision
 from daybagger.decision.learning import ModelLearningStore
 from daybagger.decision.replay import DecisionSnapshot
@@ -9,7 +8,6 @@ from daybagger.decision.replay import DecisionSnapshot
 __all__ = [
     "ValidatedLinearModel",
     "ValidatedModelSpec",
-    "EvidenceWeightedEnsemble",
     "AdaptiveCapitalAllocator",
     "CapitalState",
     "AllocationDecision",

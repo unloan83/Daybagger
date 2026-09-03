@@ -8,8 +8,10 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/opt/daybagger
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/daybagger/.venv/bin/python scripts/check_runtime.py
-Restart=no
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/daybagger/.venv/bin/python scripts/run_paper_runtime.py
+Restart=on-failure
+RestartSec=30
 
 [Install]
 WantedBy=multi-user.target

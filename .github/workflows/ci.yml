@@ -1,0 +1,29 @@
+name: Daybagger CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install test and research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+          python -m pip install -r research/requirements.txt
+      - name: Verify no syntax/import/test regressions
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python -m compileall -q daybagger scripts tests
+          python scripts/check_foundation.py
+          python scripts/check_runtime.py
+          python scripts/check_validation.py
+          python -m pytest -q

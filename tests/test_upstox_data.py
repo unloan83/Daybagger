@@ -122,3 +122,58 @@ def test_duplicate_candle_timestamp_is_rejected() -> None:
     client = UpstoxMarketData(access_token="test", transport=duplicate_transport)
     with pytest.raises(UpstoxDataError):
         client.intraday_candles(KEY)
+
+
+def test_market_timings_and_exchange_status_use_official_payloads() -> None:
+    calls = []
+    def transport(url, headers, timeout):
+        calls.append(url)
+        if "/market/timings/" in url:
+            return {
+                "status": "success",
+                "data": [{
+                    "exchange": "NSE",
+                    "start_time": 1788407100000,
+                    "end_time": 1788429600000,
+                }],
+            }
+        if "/market/status/" in url:
+            return {"status": "success", "data": {"exchange": "NSE", "status": "NORMAL_OPEN"}}
+        raise AssertionError(url)
+
+    client = UpstoxMarketData(access_token="test", transport=transport)
+    timing = client.market_timings(__import__("datetime").date(2026, 9, 3))[0]
+    assert timing.exchange == "NSE"
+    assert timing.start_time.tzinfo is not None
+    assert timing.end_time > timing.start_time
+    assert client.exchange_status("NSE") == "NORMAL_OPEN"
+    assert any("/market/timings/2026-09-03" in url for url in calls)
+
+
+def test_transient_upstox_errors_retry_but_auth_errors_do_not(monkeypatch) -> None:
+    from daybagger.data.upstox import UpstoxTransientDataError
+
+    transient_calls = {"n": 0}
+    def transient(url, headers, timeout):
+        transient_calls["n"] += 1
+        if transient_calls["n"] < 3:
+            raise UpstoxTransientDataError("temporary")
+        return {"status": "success", "data": {}}
+
+    client = UpstoxMarketData(
+        access_token="test", transport=transient, max_attempts=3, retry_backoff_seconds=0,
+    )
+    assert client.request_json("https://example.test") == {"status": "success", "data": {}}
+    assert transient_calls["n"] == 3
+
+    auth_calls = {"n": 0}
+    def auth_error(url, headers, timeout):
+        auth_calls["n"] += 1
+        raise UpstoxDataError("401 invalid token")
+
+    client2 = UpstoxMarketData(
+        access_token="test", transport=auth_error, max_attempts=3, retry_backoff_seconds=0,
+    )
+    with pytest.raises(UpstoxDataError):
+        client2.request_json("https://example.test")
+    assert auth_calls["n"] == 1

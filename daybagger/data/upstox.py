@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
+from time import sleep
 from typing import Any, Callable, Mapping, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
@@ -15,6 +16,10 @@ from daybagger.domain import ExecutableQuote
 
 class UpstoxDataError(RuntimeError):
     """Upstox data could not be retrieved or validated."""
+
+
+class UpstoxTransientDataError(UpstoxDataError):
+    """A request failed for a reason that is safe to retry with backoff."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +79,21 @@ class IntradayCandle:
             raise UpstoxDataError("volume/open_interest cannot be negative")
 
 
+@dataclass(frozen=True, slots=True)
+class MarketTiming:
+    exchange: str
+    start_time: datetime
+    end_time: datetime
+
+    def validate(self) -> None:
+        if not self.exchange.strip():
+            raise UpstoxDataError("market timing exchange is required")
+        if self.start_time.tzinfo is None or self.end_time.tzinfo is None:
+            raise UpstoxDataError("market timing timestamps must be timezone-aware")
+        if self.end_time <= self.start_time:
+            raise UpstoxDataError("market timing end must be after start")
+
+
 JsonTransport = Callable[[str, Mapping[str, str], float], dict[str, Any]]
 
 
@@ -89,6 +109,8 @@ class UpstoxMarketData:
 
     QUOTE_URL = "https://api.upstox.com/v2/market-quote/quotes"
     INTRADAY_URL = "https://api.upstox.com/v3/historical-candle/intraday"
+    MARKET_TIMINGS_URL = "https://api.upstox.com/v2/market/timings"
+    EXCHANGE_STATUS_URL = "https://api.upstox.com/v2/market/status"
 
     def __init__(
         self,
@@ -96,6 +118,8 @@ class UpstoxMarketData:
         *,
         timeout_seconds: float = 10.0,
         transport: JsonTransport | None = None,
+        max_attempts: int = 3,
+        retry_backoff_seconds: float = 0.25,
     ) -> None:
         token = (access_token or os.getenv("UPSTOX_ACCESS_TOKEN", "")).strip()
         if not token:
@@ -104,12 +128,23 @@ class UpstoxMarketData:
             )
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
+        if max_attempts <= 0:
+            raise ValueError("max_attempts must be > 0")
+        if retry_backoff_seconds < 0:
+            raise ValueError("retry_backoff_seconds cannot be negative")
 
         self._token = token
         self._timeout = timeout_seconds
         self._transport = transport or _default_json_transport
+        self._max_attempts = max_attempts
+        self._retry_backoff_seconds = retry_backoff_seconds
 
-    def full_quotes(self, instrument_keys: Sequence[str]) -> dict[str, UpstoxQuoteSnapshot]:
+    def full_quotes(
+        self,
+        instrument_keys: Sequence[str],
+        *,
+        require_complete: bool = True,
+    ) -> dict[str, UpstoxQuoteSnapshot]:
         keys = _clean_keys(instrument_keys)
         if not keys:
             raise UpstoxDataError("at least one instrument key is required")
@@ -117,7 +152,7 @@ class UpstoxMarketData:
             raise UpstoxDataError("Full Market Quote accepts at most 500 instrument keys per call")
 
         query = urlencode({"instrument_key": ",".join(keys)})
-        payload = self._get_json(f"{self.QUOTE_URL}?{query}")
+        payload = self.request_json(f"{self.QUOTE_URL}?{query}")
 
         if payload.get("status") != "success":
             raise UpstoxDataError(f"Upstox quote response not successful: {payload!r}")
@@ -134,7 +169,7 @@ class UpstoxMarketData:
             snapshots[snap.instrument_key] = snap
 
         missing = [key for key in keys if key not in snapshots]
-        if missing:
+        if missing and require_complete:
             raise UpstoxDataError(
                 "Upstox did not return all requested instruments: " + ", ".join(missing)
             )
@@ -156,7 +191,7 @@ class UpstoxMarketData:
         url = (
             f"{self.INTRADAY_URL}/{encoded_key}/minutes/{interval_minutes}"
         )
-        payload = self._get_json(url)
+        payload = self.request_json(url)
 
         if payload.get("status") != "success":
             raise UpstoxDataError(f"Upstox candle response not successful: {payload!r}")
@@ -168,7 +203,7 @@ class UpstoxMarketData:
                 f"{key}: no genuine intraday candles returned; refusing fallback."
             )
 
-        candles = [_parse_candle(key, row) for row in raw_candles]
+        candles = [parse_candle(key, row) for row in raw_candles]
         candles.sort(key=lambda candle: candle.timestamp)
 
         # Fail closed on duplicate timestamps: duplicate bars would corrupt indicators later.
@@ -178,22 +213,84 @@ class UpstoxMarketData:
 
         return candles
 
-    def _get_json(self, url: str) -> dict[str, Any]:
+    def market_timings(self, trading_date: date) -> tuple[MarketTiming, ...]:
+        """
+        Return official Upstox market timings for a date.
+
+        An empty tuple is a valid result for an exchange holiday. Production
+        callers must fail closed when no NSE cash-market timing is present.
+        """
+        payload = self.request_json(
+            f"{self.MARKET_TIMINGS_URL}/{trading_date.isoformat()}"
+        )
+        if payload.get("status") != "success":
+            raise UpstoxDataError(
+                f"market timings response not successful: {payload!r}"
+            )
+        raw = payload.get("data")
+        if not isinstance(raw, list):
+            raise UpstoxDataError("market timings response data is not a list")
+        result: list[MarketTiming] = []
+        for item in raw:
+            if not isinstance(item, Mapping):
+                continue
+            exchange = str(item.get("exchange") or "").strip()
+            if not exchange:
+                continue
+            start = _parse_timestamp(item.get("start_time"))
+            end = _parse_timestamp(item.get("end_time"))
+            timing = MarketTiming(exchange=exchange, start_time=start, end_time=end)
+            timing.validate()
+            result.append(timing)
+        return tuple(result)
+
+    def exchange_status(self, exchange: str = "NSE") -> str:
+        clean = exchange.strip().upper()
+        if not clean:
+            raise UpstoxDataError("exchange is required")
+        payload = self.request_json(f"{self.EXCHANGE_STATUS_URL}/{quote(clean, safe='')}")
+        if payload.get("status") != "success":
+            raise UpstoxDataError(
+                f"exchange status response not successful: {payload!r}"
+            )
+        data = payload.get("data")
+        status = str(data.get("status") or "").strip() if isinstance(data, dict) else ""
+        if not status:
+            raise UpstoxDataError("exchange status response omitted status")
+        return status
+
+    def request_json(self, url: str) -> dict[str, Any]:
+        """Public, fail-closed JSON request primitive with bounded retry/backoff."""
         headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {self._token}",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         }
-        try:
-            payload = self._transport(url, headers, self._timeout)
-        except UpstoxDataError:
-            raise
-        except Exception as exc:
-            raise UpstoxDataError(f"Upstox request failed: {exc}") from exc
+        last_error: Exception | None = None
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                payload = self._transport(url, headers, self._timeout)
+                break
+            except UpstoxTransientDataError as exc:
+                last_error = exc
+                if attempt >= self._max_attempts:
+                    raise
+                if self._retry_backoff_seconds:
+                    sleep(self._retry_backoff_seconds * (2 ** (attempt - 1)))
+            except UpstoxDataError:
+                raise
+            except Exception as exc:
+                raise UpstoxDataError(f"Upstox request failed: {exc}") from exc
+        else:  # pragma: no cover - loop either breaks or raises
+            raise UpstoxDataError(f"Upstox request failed: {last_error}")
 
         if not isinstance(payload, dict):
             raise UpstoxDataError("Upstox response is not a JSON object")
         return payload
+
+    # Compatibility for older internal callers. New code must use request_json().
+    def _get_json(self, url: str) -> dict[str, Any]:
+        return self.request_json(url)
 
 
 def _default_json_transport(
@@ -207,9 +304,16 @@ def _default_json_transport(
             body = response.read().decode("utf-8")
     except HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        raise UpstoxDataError(f"Upstox HTTP {exc.code}: {body[:500]}") from exc
+        error_cls = (
+            UpstoxTransientDataError
+            if exc.code == 429 or 500 <= exc.code <= 599
+            else UpstoxDataError
+        )
+        raise error_cls(f"Upstox HTTP {exc.code}: {body[:500]}") from exc
     except URLError as exc:
-        raise UpstoxDataError(f"Upstox network error: {exc.reason}") from exc
+        raise UpstoxTransientDataError(
+            f"Upstox network error: {exc.reason}"
+        ) from exc
 
     try:
         return json.loads(body)
@@ -272,7 +376,7 @@ def _parse_quote_snapshot(raw: Mapping[str, Any]) -> UpstoxQuoteSnapshot:
     return snapshot
 
 
-def _parse_candle(instrument_key: str, row: Any) -> IntradayCandle:
+def parse_candle(instrument_key: str, row: Any) -> IntradayCandle:
     if not isinstance(row, (list, tuple)) or len(row) < 7:
         raise UpstoxDataError(f"{instrument_key}: malformed candle: {row!r}")
 
@@ -296,7 +400,7 @@ def _parse_timestamp(value: Any) -> datetime:
         seconds = float(value)
         if seconds > 10_000_000_000:
             seconds /= 1000.0
-        return datetime.fromtimestamp(seconds).astimezone()
+        return datetime.fromtimestamp(seconds, tz=timezone.utc)
 
     text = str(value or "").strip()
     if not text:
@@ -312,6 +416,10 @@ def _parse_timestamp(value: Any) -> datetime:
     if parsed.tzinfo is None:
         raise UpstoxDataError(f"timestamp is not timezone-aware: {text}")
     return parsed
+
+
+# Backward-compatible private alias while historical callers migrate.
+_parse_candle = parse_candle
 
 
 def _positive_decimal(value: Any, field: str) -> Decimal:

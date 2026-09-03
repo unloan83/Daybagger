@@ -107,6 +107,7 @@ class NSEEquityUniverse:
         market_data: UpstoxMarketData,
         instruments: Sequence[EquityInstrument],
         batch_size: int = 500,
+        require_complete: bool = True,
     ) -> list[ObservableEquity]:
         """
         Adds real current quote information to the official universe.
@@ -126,14 +127,16 @@ class NSEEquityUniverse:
 
         for keys in _chunks(list(by_key), batch_size):
             try:
-                snapshots = market_data.full_quotes(keys)
+                snapshots = market_data.full_quotes(keys, require_complete=require_complete)
             except UpstoxDataError as exc:
                 raise UniverseError(f"quote batch failed: {exc}") from exc
 
             for key in keys:
                 snap = snapshots.get(key)
                 if snap is None:
-                    raise UniverseError(f"missing quote for official instrument {key}")
+                    if require_complete:
+                        raise UniverseError(f"missing quote for official instrument {key}")
+                    continue
 
                 spread_bps = _spread_bps(snap)
                 turnover = snap.last_price * Decimal(snap.session_volume)

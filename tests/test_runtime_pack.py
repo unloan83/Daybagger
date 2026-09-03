@@ -107,3 +107,29 @@ def test_session_guard_has_separate_entry_cutoff_and_exit() -> None:
     assert guard.state(datetime(2026, 9, 2, 10, 0, tzinfo=india)) == SessionState.MARKET
     assert guard.state(datetime(2026, 9, 2, 15, 7, tzinfo=india)) == SessionState.ENTRY_CLOSED
     assert guard.state(datetime(2026, 9, 2, 15, 10, tzinfo=india)) == SessionState.CLOSED
+
+
+def test_ledger_persists_actual_paper_fill_and_reservations(tmp_path: Path) -> None:
+    ledger = PaperLedger(tmp_path / "paper.sqlite3")
+    ledger.initialize()
+    fill = Decimal("100.07")
+    pos = ledger.open_fill(
+        symbol="AAA",
+        direction=Direction.LONG,
+        quantity=25,
+        filled_price=fill,
+        now=NOW,
+        instrument_key="NSE_EQ|AAA",
+        opportunity_id="opp-1",
+        validation_id="meta-1",
+        reserved_capital_inr=fill * 25,
+        max_loss_inr=Decimal("250"),
+        stop_price=Decimal("98"),
+        horizon_minutes=30,
+    )
+    loaded = ledger.open_positions()[0]
+    assert loaded.position_id == pos.position_id
+    assert loaded.entry_price == fill
+    assert loaded.reserved_capital_inr == fill * 25
+    assert ledger.open_capital_inr() == fill * 25
+    assert ledger.open_risk_inr() == Decimal("250")

@@ -8,7 +8,7 @@ from daybagger.data.upstox import (
     IntradayCandle,
     UpstoxDataError,
     UpstoxMarketData,
-    _parse_candle,
+    parse_candle,
 )
 
 
@@ -48,7 +48,7 @@ class HistoricalCandleClient:
                 f"{self.BASE_URL}/{encoded}/minutes/{interval_minutes}/"
                 f"{chunk_to.isoformat()}/{chunk_from.isoformat()}"
             )
-            payload = self.market_data._get_json(url)
+            payload = self.market_data.request_json(url)
             if payload.get("status") != "success":
                 raise UpstoxDataError(
                     f"historical candle response not successful: {payload!r}"
@@ -57,7 +57,7 @@ class HistoricalCandleClient:
             raw = data.get("candles") if isinstance(data, dict) else None
             if not isinstance(raw, list):
                 raise UpstoxDataError(f"{key}: historical candles missing")
-            rows.extend(_parse_candle(key, item) for item in raw)
+            rows.extend(parse_candle(key, item) for item in raw)
 
         rows.sort(key=lambda c: c.timestamp)
         deduped: dict = {c.timestamp: c for c in rows}

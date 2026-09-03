@@ -26,8 +26,8 @@ It will:
 2. **Equity Only for V1**
    Daybagger trades cash equities. Other markets, indices, F&O/OI, VIX, global markets, etc. may be used freely as intelligence inputs.
 
-3. **No Intelligence Restrictions**
-   Use any lawful information that improves prediction or execution: price, volume, breadth, sectors, NIFTY, VIX, institutional activity, F&O/OI, global cues, GIFT NIFTY, news, events, corporate actions, order book, historical analogues, expert strategies and quantitative models.
+3. **Broad Intelligence, Evidence-Gated**
+   Use any lawful information that can improve prediction or execution: price, volume, breadth, sectors, NIFTY, VIX, institutional activity, F&O/OI, global cues, GIFT NIFTY, news, events, corporate actions, order book, historical analogues, expert strategies and quantitative models. A source may influence trading only when its timestamp/history is sufficient for leakage-safe validation; otherwise collect it for forward learning until it earns weight.
 
 4. **Technology Must Create the Edge**
    Exploit capabilities humans cannot efficiently replicate: market-wide simultaneous scanning, historical comparison, regime detection, cross-sectional ranking, predictive probability, rapid information fusion and automated learning.
@@ -35,8 +35,8 @@ It will:
 5. **No Single-Strategy Dependency**
    Momentum, pullback, relative strength, catalyst/news, sector rotation, mean reversion, microstructure and other validated strategies are specialist inputs. Daybagger decides which strategy deserves capital under current conditions.
 
-6. **Evidence Over Indicators**
-   No RSI/MACD/ADX/RVOL stacking or arbitrary confidence scores. Every meaningful metric, formula, filter or strategy must prove usefulness on Indian historical and out-of-sample data.
+6. **Evidence Over Labels or Indicators**
+   Derived features/indicators are allowed only as measurable evidence; names such as RSI/MACD/ADX/RVOL neither validate nor invalidate a signal. No arbitrary stacking, thresholds or confidence scores. Every meaningful metric, formula, filter, interaction or strategy must prove incremental usefulness on Indian historical and out-of-sample data before it can influence production.
 
 7. **Same Logic Everywhere**
    Live trading, replay, backtest and learning must use the same strategy implementation. No separate “backtest logic” and “live logic.”

@@ -82,6 +82,25 @@ class IndiaEquityIntradayCostModel:
             total=_money(total),
         )
 
+    def round_trip_bps_for_notional(self, notional_inr: Decimal) -> float:
+        """Known statutory/brokerage cost in bps for equal buy/sell notional."""
+        if notional_inr <= 0:
+            raise ValueError("notional_inr must be positive")
+        costs = self.estimate_round_trip(
+            buy_turnover=notional_inr,
+            sell_turnover=notional_inr,
+        )
+        return costs.total_bps(notional_inr, notional_inr)
+
+    def conservative_linear_round_trip_bps(self) -> float:
+        """
+        Maximum normal percentage-cost regime before the brokerage cap helps.
+
+        A small positive notional remains below the per-order brokerage cap, so
+        this is conservative for larger trades under the same published schedule.
+        """
+        return self.round_trip_bps_for_notional(Decimal("1000"))
+
 
 def _money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

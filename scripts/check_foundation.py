@@ -18,6 +18,7 @@ def main()->int:
     result=PaperBroker(max_quote_age_seconds=settings.execution.max_quote_age_seconds,slippage_bps=settings.execution.paper_slippage_bps).execute(request=request,quote=quote,now=now)
     with tempfile.TemporaryDirectory() as td:
         store=SQLiteControlStore(Path(td)/'control.sqlite3'); store.initialize(); store.record_event('SELF_CHECK',{'status':'PASS'}); assert store.recent_events(1)[0]['payload']['status']=='PASS'
-    assert result.filled_price==Decimal('100.10')
+    expected_fill = quote.ask * (Decimal('1') + Decimal(str(settings.execution.paper_slippage_bps)) / Decimal('10000'))
+    assert result.filled_price == expected_fill
     print(f'DAYBAGGER FOUNDATION CHECK: PASS (goldenrules_sha256={rules.sha256[:12]}..., mode={settings.app.trading_mode})'); return 0
 if __name__=='__main__': raise SystemExit(main())

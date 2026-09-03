@@ -10,7 +10,24 @@ starting_capital_inr = 30000.0
 
 [storage]
 control_db_path = "data/daybagger_control.sqlite3"
+paper_ledger_path = "data/paper.sqlite3"
+decision_trace_path = "data/decision_traces.sqlite3"
+learning_db_path = "data/learning.sqlite3"
 
 [execution]
 max_quote_age_seconds = 15
-paper_slippage_bps = 0.0
+paper_slippage_bps = 2.0
+
+[risk]
+max_risk_per_trade_inr = 500.0
+hard_daily_loss_limit_inr = 1000.0
+max_aggregate_open_risk_inr = 1000.0
+max_position_fraction = 0.5
+
+[runtime]
+# Broad quote scan covers the complete official MIS universe. This setting only
+# caps expensive per-symbol minute-candle analysis to stay inside free resources.
+deep_scan_symbols = 40
+cycle_seconds = 300
+learning_min_observations = 20
+learning_lookback_days = 90

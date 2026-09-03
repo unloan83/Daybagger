@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 
 class SessionState(StrEnum):
+    NON_TRADING_DAY = "NON_TRADING_DAY"
     PREMARKET = "PREMARKET"
     MARKET = "MARKET"
     ENTRY_CLOSED = "ENTRY_CLOSED"
@@ -29,7 +30,10 @@ class SessionGuard:
     def state(self, now: datetime) -> SessionState:
         if now.tzinfo is None:
             raise ValueError("now must be timezone-aware")
-        local = now.astimezone(ZoneInfo(self.timezone)).time()
+        local_dt = now.astimezone(ZoneInfo(self.timezone))
+        if local_dt.weekday() >= 5:
+            return SessionState.NON_TRADING_DAY
+        local = local_dt.time()
 
         if local < self.market_open:
             return SessionState.PREMARKET

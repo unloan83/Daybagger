@@ -49,10 +49,6 @@ class Opportunity:
         return cls(uuid4(),symbol,direction,as_of,expected_net_return_bps,confidence,status,reason,tuple(opinion_ids))
 
 @dataclass(frozen=True, slots=True)
-class RiskDecision:
-    approved: bool; reason: str; quantity: int; max_loss_inr: Decimal
-
-@dataclass(frozen=True, slots=True)
 class ExecutionRequest:
     request_id:UUID; opportunity_id:UUID; symbol:str; direction:Direction; quantity:int; created_at:datetime
     @classmethod

@@ -1,0 +1,14 @@
+[Unit]
+Description=Daybagger Paper Readiness Check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/daybagger
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/daybagger/.venv/bin/python scripts/check_daybagger_ready.py
+
+[Install]
+WantedBy=multi-user.target

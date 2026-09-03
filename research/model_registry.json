@@ -1,0 +1,38 @@
+[
+  {
+    "approved": false,
+    "created_at_utc": "2026-09-03T07:17:46.748671+00:00",
+    "metrics": {
+      "avg_net_return_bps": -25.930545390058995,
+      "brier_score": 0.08064880608839735,
+      "max_drawdown_bps": 46674.98170210627,
+      "median_net_return_bps": -25.109881892569884,
+      "observations": 1800,
+      "profit_factor": 0.04426949417344522,
+      "return_stability": -1.1505686091569505,
+      "win_rate": 0.08666666666666667
+    },
+    "model_id": "trend_pullback_short",
+    "reason": "NOT_APPROVED: positive_holdout_expectancy, positive_holdout_profit_factor, positive_95pct_session_bootstrap_lower_bound",
+    "validation_id": "trend-pullback-short-2026-05-06-2026-09-02-20260903071746",
+    "version": "1-20260902"
+  },
+  {
+    "approved": false,
+    "created_at_utc": "2026-09-03T10:21:34.647339+00:00",
+    "metrics": {
+      "avg_net_return_bps": 0.0,
+      "brier_score": 0.0,
+      "max_drawdown_bps": 0.0,
+      "median_net_return_bps": 0.0,
+      "observations": 0,
+      "profit_factor": null,
+      "return_stability": 0.0,
+      "win_rate": 0.0
+    },
+    "model_id": "meta_intelligence",
+    "reason": "development_net_expectancy_non_positive, development_profit_factor_not_above_one, holdout_net_expectancy_non_positive, holdout_profit_factor_not_above_one, holdout_cross_section_rank_ic_non_positive, holdout_insufficient_selected_opportunities",
+    "validation_id": "meta-v3-2026-04-01-2026-09-02-20260903101853",
+    "version": "meta-v3"
+  }
+]

@@ -18,7 +18,7 @@ from daybagger.intelligence.upstox_external import (
     _parse_fii_payload,
     lagged_institutional_features,
 )
-from daybagger.meta.forest import export_random_forest_classifier
+from daybagger.meta.forest import export_random_forest_regressor
 from daybagger.validation.meta_intelligence import _gross_with_range_stop, _spearman
 
 
@@ -48,31 +48,32 @@ def _bars(key: str, start: datetime, *, n: int, base: str, step: str = "0.10"):
     return rows
 
 
-def test_exported_forest_matches_sklearn_probability():
+def test_exported_forest_matches_sklearn_regression_and_tree_vote_probability():
     np = pytest.importorskip("numpy")
     ensemble = pytest.importorskip("sklearn.ensemble")
     X = np.asarray([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]] * 20)
-    y = np.asarray([0, 0, 1, 1] * 20)
-    model = ensemble.RandomForestClassifier(
+    y = np.asarray([-10.0, 5.0, 20.0, 35.0] * 20)
+    model = ensemble.RandomForestRegressor(
         n_estimators=8,
         max_depth=3,
         random_state=7,
     ).fit(X, y)
-    spec = export_random_forest_classifier(
+    spec = export_random_forest_regressor(
         model=model,
-        model_id="meta_long",
-        version="v1",
+        model_id="meta_long_direct_return",
+        version="meta-v4-direct-return",
         direction="LONG",
         horizon_minutes=30,
         feature_names=("a", "b"),
-        favourable_move_bps=20.0,
-        adverse_move_bps=10.0,
         validation_id="test",
     )
     for row in ([0.0, 0.0], [0.2, 0.8], [1.0, 1.0]):
-        expected = float(model.predict_proba([row])[0][list(model.classes_).index(1)])
-        actual = spec.probability({"a": row[0], "b": row[1]})
+        expected = float(model.predict([row])[0])
+        actual = spec.expected_gross_return_bps({"a": row[0], "b": row[1]})
         assert actual == pytest.approx(expected, abs=1e-12)
+        tree_preds = [float(est.predict([row])[0]) for est in model.estimators_]
+        expected_probability = sum(v > 8.0 for v in tree_preds) / len(tree_preds)
+        assert spec.probability_above({"a": row[0], "b": row[1]}, 8.0) == pytest.approx(expected_probability)
 
 
 def test_meta_features_are_timestamp_aligned_and_volume_uses_prior_sessions_only():
@@ -184,7 +185,7 @@ def test_spearman_detects_cross_section_ranking_direction():
 
 def test_live_meta_edge_includes_two_sided_paper_slippage():
     from daybagger.decision.model import ValidatedModelSpec
-    from daybagger.meta.forest import ForestClassifierSpec, ProbabilityTree
+    from daybagger.meta.forest import ForestRegressorSpec, RegressionTree
     from daybagger.meta.stack import META_CONTEXT_FEATURES, MetaIntelligenceSpec, decide_meta
 
     raw = {name: 0.0 for name in META_CONTEXT_FEATURES}
@@ -199,27 +200,26 @@ def test_live_meta_edge_includes_two_sided_paper_slippage():
         adverse_move_bps=10.0,
         validation_id="base-validation",
     )
-    leaf_long = ProbabilityTree(
+    # Two leaf-only regressors: LONG predicts +10 bps, SHORT -5 bps.
+    leaf_long = RegressionTree(
         children_left=(-1,), children_right=(-1,), feature=(-2,),
-        threshold=(-2.0,), positive_probability=(1.0,),
+        threshold=(-2.0,), value_bps=(10.0,),
     )
-    leaf_short = ProbabilityTree(
+    leaf_short = RegressionTree(
         children_left=(-1,), children_right=(-1,), feature=(-2,),
-        threshold=(-2.0,), positive_probability=(0.0,),
+        threshold=(-2.0,), value_bps=(-5.0,),
     )
     feature_name = "base_base_probe_probability"
-    long_model = ForestClassifierSpec(
-        model_id="meta_long", version="1", direction="LONG", horizon_minutes=30,
-        feature_names=(feature_name,), trees=(leaf_long,), favourable_move_bps=10.0,
-        adverse_move_bps=10.0, validation_id="meta-validation",
+    long_model = ForestRegressorSpec(
+        model_id="meta_long_direct_return", version="meta-v4-direct-return", direction="LONG", horizon_minutes=30,
+        feature_names=(feature_name,), trees=(leaf_long,), validation_id="meta-validation",
     )
-    short_model = ForestClassifierSpec(
-        model_id="meta_short", version="1", direction="SHORT", horizon_minutes=30,
-        feature_names=(feature_name,), trees=(leaf_short,), favourable_move_bps=10.0,
-        adverse_move_bps=10.0, validation_id="meta-validation",
+    short_model = ForestRegressorSpec(
+        model_id="meta_short_direct_return", version="meta-v4-direct-return", direction="SHORT", horizon_minutes=30,
+        feature_names=(feature_name,), trees=(leaf_short,), validation_id="meta-validation",
     )
     spec = MetaIntelligenceSpec(
-        validation_id="meta-validation", version="1", horizon_minutes=30,
+        validation_id="meta-validation", version="meta-v4-direct-return", horizon_minutes=30,
         base_specs=(base,), long_model=long_model, short_model=short_model,
         meta_feature_names=(feature_name,), evidence_summary={},
     )
@@ -234,3 +234,61 @@ def test_live_meta_edge_includes_two_sided_paper_slippage():
     )
     assert result.estimated_total_cost_bps == pytest.approx(8.0)
     assert result.opportunity.expected_net_return_bps == pytest.approx(2.0)
+    assert result.opportunity.confidence == pytest.approx(1.0)
+
+
+
+def test_empty_selection_uses_baseline_brier_not_fake_zero():
+    from daybagger.meta.forest import ForestRegressorSpec, RegressionTree
+    from daybagger.validation.meta_intelligence import MetaSample, MetaTrainingRow, _evaluate_portfolio
+
+    as_of = datetime(2026, 9, 3, 11, 0, tzinfo=INDIA)
+    sample = MetaSample(
+        session_date=as_of.date(),
+        symbol="AAA",
+        as_of=as_of,
+        raw_features={"stock_session_range_bps": 50.0},
+        entry_price=Decimal("100"),
+        long_gross_return_bps=10.0,
+        short_gross_return_bps=-10.0,
+        long_net_return_bps=-10.0,
+        short_net_return_bps=-30.0,
+    )
+    # Both models predict below the 20 bps cost, therefore zero selected trades.
+    tree = RegressionTree(
+        children_left=(-1,), children_right=(-1,), feature=(-2,),
+        threshold=(-2.0,), value_bps=(5.0,),
+    )
+    model_long = ForestRegressorSpec(
+        model_id="l", version="meta-v4-direct-return", direction="LONG", horizon_minutes=15,
+        feature_names=("x",), trees=(tree,), validation_id="v",
+    )
+    model_short = ForestRegressorSpec(
+        model_id="s", version="meta-v4-direct-return", direction="SHORT", horizon_minutes=15,
+        feature_names=("x",), trees=(tree,), validation_id="v",
+    )
+    evidence = _evaluate_portfolio(
+        rows=(MetaTrainingRow(sample=sample, meta_features={"x": 0.0}),),
+        long_model=model_long,
+        short_model=model_short,
+        feature_names=("x",),
+        cost_bps=20.0,
+        horizon_minutes=15,
+        starting_capital_inr=Decimal("30000"),
+        max_risk_per_trade_inr=Decimal("500"),
+        hard_daily_loss_limit_inr=Decimal("1000"),
+        max_aggregate_open_risk_inr=Decimal("1000"),
+        max_position_fraction=0.5,
+    )
+    assert evidence.metrics.observations == 0
+    assert evidence.metrics.brier_score == pytest.approx(evidence.baseline_brier)
+
+
+def test_validation_notional_cost_uses_actual_30000_scale():
+    from daybagger.integration.costs import IndiaEquityIntradayCostModel
+
+    model = IndiaEquityIntradayCostModel()
+    actual = model.round_trip_bps_for_notional(Decimal("30000"))
+    conservative_small = model.conservative_linear_round_trip_bps()
+    assert actual == pytest.approx(19.28, abs=0.02)
+    assert actual < conservative_small

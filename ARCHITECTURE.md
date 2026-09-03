@@ -5,7 +5,7 @@ There is exactly **one production decision path**.
 1. **Official observations** — NSE/Upstox data only; missing/invalid evidence fails closed.
 2. **Broad intelligence** — market, sector, stock, cross-section, institutional/flow, volatility and executable microstructure; additional sources are evidence-gated.
 3. **Specialist evidence** — validated probabilistic base models, never independent production engines.
-4. **Meta intelligence** — nonlinear interaction model combines specialist + context evidence and predicts LONG/SHORT gross opportunity.
+4. **Meta intelligence** — nonlinear direct-return forest combines specialist + context evidence and predicts side-specific future gross return in bps.
 5. **Net-edge gate** — subtract conservative statutory cost, real live spread and declared two-sided execution slippage.
 6. **Cross-sectional ranking** — compare all qualified opportunities simultaneously.
 7. **Portfolio risk** — sequential cash/open-risk reservation, daily-loss halt, drawdown-aware allocation, integer quantity sizing and actual-cost recheck.

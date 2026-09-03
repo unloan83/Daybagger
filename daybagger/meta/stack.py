@@ -8,10 +8,10 @@ from typing import Mapping, Sequence
 
 from daybagger.decision.model import ValidatedLinearModel, ValidatedModelSpec
 from daybagger.domain import DecisionStatus, Direction, ModelOpinion, Opportunity
-from daybagger.meta.forest import ForestClassifierSpec
+from daybagger.meta.forest import ForestRegressorSpec
 
 
-RUNTIME_META_VERSION = "meta-v3"
+RUNTIME_META_VERSION = "meta-v4-direct-return"
 BASE_FAMILIES = ("relative_strength", "trend_pullback", "volume_participation")
 META_CONTEXT_FEATURES = (
     "stock_session_return_bps",
@@ -57,8 +57,8 @@ class MetaIntelligenceSpec:
     version: str
     horizon_minutes: int
     base_specs: tuple[ValidatedModelSpec, ...]
-    long_model: ForestClassifierSpec
-    short_model: ForestClassifierSpec
+    long_model: ForestRegressorSpec
+    short_model: ForestRegressorSpec
     meta_feature_names: tuple[str, ...]
     evidence_summary: Mapping[str, object]
 
@@ -106,8 +106,8 @@ class MetaIntelligenceSpec:
             version=str(payload["version"]),
             horizon_minutes=int(payload["horizon_minutes"]),
             base_specs=tuple(_linear_spec_from_dict(item) for item in payload["base_specs"]),
-            long_model=ForestClassifierSpec.from_dict(payload["long_model"]),
-            short_model=ForestClassifierSpec.from_dict(payload["short_model"]),
+            long_model=ForestRegressorSpec.from_dict(payload["long_model"]),
+            short_model=ForestRegressorSpec.from_dict(payload["short_model"]),
             meta_feature_names=tuple(str(v) for v in payload["meta_feature_names"]),
             evidence_summary=dict(payload.get("evidence_summary") or {}),
         )
@@ -196,10 +196,15 @@ def decide_meta(
     if missing:
         raise ValueError(f"live intelligence missing validated meta features: {missing}")
     selected = {name: meta_features[name] for name in spec.meta_feature_names}
-    long_p = spec.long_model.probability(selected)
-    short_p = spec.short_model.probability(selected)
     long_gross = spec.long_model.expected_gross_return_bps(selected)
     short_gross = spec.short_model.expected_gross_return_bps(selected)
+    # Live spread approximates the round-trip bid/ask crossing cost. Paper
+    # slippage is charged independently on entry and exit.
+    cost = statutory_cost_bps + live_spread_bps + 2.0 * paper_slippage_bps_per_side
+    # Direct-return forests expose the distribution of tree return forecasts.
+    # Confidence is the fraction of trees whose forecast clears the CURRENT cost.
+    long_p = spec.long_model.probability_above(selected, cost)
+    short_p = spec.short_model.probability_above(selected, cost)
     base_opinions = _base_opinions(
         symbol=symbol,
         as_of=as_of,
@@ -229,10 +234,6 @@ def decide_meta(
         evidence_ids=(),
     )
     opinions = (*base_opinions, meta_long, meta_short)
-    # Live spread approximates the round-trip bid/ask crossing cost. Paper
-    # slippage is charged independently on entry and exit, so include both sides
-    # in the decision edge gate before an opportunity can qualify.
-    cost = statutory_cost_bps + live_spread_bps + 2.0 * paper_slippage_bps_per_side
     candidates = [
         (Direction.LONG, long_gross - cost, long_p),
         (Direction.SHORT, short_gross - cost, short_p),
@@ -248,9 +249,9 @@ def decide_meta(
         confidence=float(confidence),
         status=status,
         reason=(
-            "META_EXPECTED_EDGE_COVERS_STATUTORY_AND_LIVE_SPREAD_COST"
+            "DIRECT_RETURN_EDGE_COVERS_STATUTORY_AND_LIVE_SPREAD_COST"
             if status == DecisionStatus.QUALIFIED
-            else "META_EXPECTED_EDGE_DOES_NOT_COVER_LIVE_COST"
+            else "DIRECT_RETURN_EDGE_DOES_NOT_COVER_LIVE_COST"
         ),
         opinion_ids=[op.opinion_id for op in opinions],
     )

@@ -24,8 +24,8 @@ TO_DATE = date(2026, 9, 2)
 
 
 def main() -> int:
-    print("DAYBAGGER LOCKED META-INTELLIGENCE VALIDATION")
-    print("method=LOCKED_MULTI_SPECIALIST_CROSS_SECTION_META_V3")
+    print("DAYBAGGER LOCKED DIRECT-RETURN META VALIDATION")
+    print("method=LOCKED_DIRECT_RETURN_CROSS_SECTION_META_V4")
     print("holdout_tuning=FORBIDDEN auto_fix=FORBIDDEN dummy_model=FORBIDDEN")
 
     token = read_env_value(REPO_ROOT / ".env.local", "UPSTOX_ACCESS_TOKEN")

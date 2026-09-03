@@ -2,7 +2,7 @@
 
 Daybagger is a **paper-only Indian-equity meta-intelligence trading system** built around one canonical production path:
 
-**official market data → market/sector/stock/flow intelligence → validated specialists → nonlinear meta-model → cross-sectional net-edge ranking → portfolio-aware risk/quantity sizing → paper execution → ledger → accepted/rejected outcome learning**
+**official market data → market/sector/stock/flow intelligence → validated specialists → direct future-return meta-model → cross-sectional net-edge ranking → portfolio-aware risk/quantity sizing → paper execution → ledger → accepted/rejected outcome learning**
 
 ## Current operating state
 

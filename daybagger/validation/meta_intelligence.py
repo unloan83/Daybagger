@@ -23,7 +23,7 @@ from daybagger.intelligence.meta_features import (
     build_meta_raw_features,
 )
 from daybagger.intelligence.upstox_external import lagged_institutional_features
-from daybagger.meta.forest import export_random_forest_classifier
+from daybagger.meta.forest import export_random_forest_regressor
 from daybagger.meta.stack import (
     BASE_FAMILIES,
     MetaIntelligenceSpec,
@@ -345,11 +345,11 @@ def validate_meta_intelligence(
     settings = load_settings(repo_root / "config" / "default.toml")
     cost_model = IndiaEquityIntradayCostModel()
     # Historical order-book spread is unavailable and is never fabricated. Known
-    # statutory/brokerage cost uses the conservative pre-cap percentage regime.
+    # statutory/brokerage cost is computed at the declared validation notional.
     # Paper slippage is a declared execution assumption and is charged on BOTH
     # entry and exit so historical validation cannot be more optimistic than the
     # canonical paper runtime merely because historical bid/ask is unavailable.
-    statutory_cost_bps = cost_model.conservative_linear_round_trip_bps()
+    statutory_cost_bps = cost_model.round_trip_bps_for_notional(validation_notional_inr)
     execution_allowance_bps = 2.0 * settings.execution.paper_slippage_bps
     cost_bps = statutory_cost_bps + execution_allowance_bps
 
@@ -380,7 +380,7 @@ def validate_meta_intelligence(
         raise RuntimeError("development period must contain at least 40 sessions")
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    validation_id = f"meta-v3-{from_date.isoformat()}-{to_date.isoformat()}-{stamp}"
+    validation_id = f"meta-v4-direct-return-{from_date.isoformat()}-{to_date.isoformat()}-{stamp}"
 
     horizon_evidence: list[HorizonEvidence] = []
     horizon_oof: dict[int, list[MetaTrainingRow]] = {}
@@ -408,7 +408,7 @@ def validate_meta_intelligence(
         if not meta_train_rows or not meta_eval_rows:
             continue
         feature_names = choose_meta_feature_names([row.meta_features for row in meta_train_rows])
-        long_model, short_model = _fit_meta_forests(
+        long_model, short_model = _fit_meta_regressors(
             rows=meta_train_rows,
             feature_names=feature_names,
             horizon_minutes=horizon,
@@ -468,7 +468,7 @@ def validate_meta_intelligence(
     )
     full_oof = horizon_oof[horizon]
     feature_names = choose_meta_feature_names([row.meta_features for row in full_oof])
-    long_model, short_model = _fit_meta_forests(
+    long_model, short_model = _fit_meta_regressors(
         rows=full_oof,
         feature_names=feature_names,
         horizon_minutes=horizon,
@@ -523,7 +523,7 @@ def validate_meta_intelligence(
     approved = not reasons
 
     evidence_summary = {
-        "method": "LOCKED_MULTI_SPECIALIST_CROSS_SECTION_META_V3",
+        "method": "LOCKED_DIRECT_RETURN_CROSS_SECTION_META_V4",
         "horizons_considered": list(FIXED_HORIZONS),
         "selected_horizon_minutes": horizon,
         "historical_spread_policy": "NOT_INVENTED; live spread required at execution",
@@ -558,7 +558,7 @@ def validate_meta_intelligence(
 
     final_spec = MetaIntelligenceSpec(
         validation_id=validation_id,
-        version="meta-v3",
+        version="meta-v4-direct-return",
         horizon_minutes=horizon,
         base_specs=tuple(base_specs),
         long_model=replace(long_model, validation_id=validation_id),
@@ -583,7 +583,7 @@ def validate_meta_intelligence(
 
     ModelRegistry(registry_path).record(
         model_id="meta_intelligence",
-        version="meta-v3",
+        version="meta-v4-direct-return",
         validation_id=validation_id,
         metrics=holdout_evidence.metrics,
         approved=approved,
@@ -704,16 +704,23 @@ def _fit_base_specs(
     return tuple(result)
 
 
-def _fit_meta_forests(
+def _fit_meta_regressors(
     *,
     rows: Sequence[MetaTrainingRow],
     feature_names: Sequence[str],
     horizon_minutes: int,
     validation_id: str,
 ):
+    """Fit direct side-specific future gross-return models.
+
+    This deliberately replaces the old UP/DOWN classifier + median move
+    reconstruction. Costs remain outside the model so the same fitted return
+    forecast can be evaluated against historical known costs and the fresh live
+    spread without fabricating order-book history.
+    """
     try:
         import numpy as np
-        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.ensemble import RandomForestRegressor
     except ImportError as exc:
         raise RuntimeError(
             "meta research requires numpy/scikit-learn from research/requirements.txt; "
@@ -726,32 +733,27 @@ def _fit_meta_forests(
     )
     output = []
     for direction in (Direction.LONG, Direction.SHORT):
-        y = np.asarray([1 if row.sample.net(direction) > 0 else 0 for row in rows], dtype=int)
-        if len(set(int(v) for v in y)) < 2:
-            raise RuntimeError(f"meta {direction.value}: training labels contain one class")
-        model = RandomForestClassifier(
+        y = np.asarray([float(row.sample.gross(direction)) for row in rows], dtype=float)
+        if len(y) < 50:
+            raise RuntimeError(f"meta {direction.value}: insufficient direct-return rows")
+        model = RandomForestRegressor(
             n_estimators=64,
-            max_depth=5,
+            max_depth=6,
             min_samples_leaf=max(10, len(rows) // 200),
             max_features="sqrt",
-            class_weight="balanced_subsample",
             bootstrap=True,
             n_jobs=-1,
             random_state=20260903,
         )
         model.fit(X, y)
-        positive = [row.sample.gross(direction) for row in rows if row.sample.net(direction) > 0]
-        negative = [abs(row.sample.gross(direction)) for row in rows if row.sample.net(direction) <= 0]
         output.append(
-            export_random_forest_classifier(
+            export_random_forest_regressor(
                 model=model,
-                model_id=f"meta_{direction.value.lower()}",
-                version="meta-v3",
+                model_id=f"meta_{direction.value.lower()}_direct_return",
+                version="meta-v4-direct-return",
                 direction=direction.value,
                 horizon_minutes=horizon_minutes,
                 feature_names=feature_names,
-                favourable_move_bps=float(median(positive)),
-                adverse_move_bps=float(median(negative)),
                 validation_id=validation_id,
             )
         )
@@ -781,10 +783,12 @@ def _evaluate_portfolio(
     by_time: dict[datetime, list[tuple[MetaTrainingRow, Direction, float, float, float]]] = {}
     for row in rows:
         selected = {name: float(row.meta_features[name]) for name in feature_names}
-        long_p = long_model.probability(selected)
-        short_p = short_model.probability(selected)
-        long_net_pred = long_model.expected_gross_return_bps(selected) - cost_bps
-        short_net_pred = short_model.expected_gross_return_bps(selected) - cost_bps
+        long_gross_pred = long_model.expected_gross_return_bps(selected)
+        short_gross_pred = short_model.expected_gross_return_bps(selected)
+        long_net_pred = long_gross_pred - cost_bps
+        short_net_pred = short_gross_pred - cost_bps
+        long_p = long_model.probability_above(selected, cost_bps)
+        short_p = short_model.probability_above(selected, cost_bps)
         if long_net_pred >= short_net_pred:
             direction, predicted, probability = Direction.LONG, long_net_pred, long_p
         else:
@@ -891,6 +895,12 @@ def _evaluate_portfolio(
                 risk_inr=allocation.max_loss_inr,
             )
 
+    all_actual = [item[4] for item in scored]
+    baseline_rate = mean(1.0 if actual > 0 else 0.0 for actual in all_actual)
+    baseline_brier = mean(
+        (baseline_rate - (1.0 if actual > 0 else 0.0)) ** 2
+        for actual in all_actual
+    )
     if selected_outcomes:
         metrics = evaluate_predictions(selected_outcomes)
     else:
@@ -901,15 +911,9 @@ def _evaluate_portfolio(
             win_rate=0.0,
             profit_factor=None,
             max_drawdown_bps=0.0,
-            brier_score=0.0,
+            brier_score=baseline_brier,
             return_stability=0.0,
         )
-    all_actual = [item[4] for item in scored]
-    baseline_rate = mean(1.0 if actual > 0 else 0.0 for actual in all_actual)
-    baseline_brier = mean(
-        (baseline_rate - (1.0 if actual > 0 else 0.0)) ** 2
-        for actual in all_actual
-    )
     ci_low, ci_high = _bootstrap_session_mean_ci(tuple(selected_session_returns.values()))
     return PortfolioEvidence(
         metrics=metrics,

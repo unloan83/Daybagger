@@ -15,7 +15,7 @@ from daybagger.intelligence.upstox_external import (
     load_sector_cache,
     save_sector_cache,
 )
-from daybagger.runtime.local_env import read_env_value
+from daybagger.runtime.local_env import load_env_value
 from daybagger.validation.default_meta_universe import DEFAULT_META_VALIDATION_SYMBOLS
 from daybagger.validation.meta_intelligence import validate_meta_intelligence
 
@@ -38,9 +38,13 @@ def main() -> int:
     print("holdout_tuning=FORBIDDEN auto_fix=FORBIDDEN dummy_model=FORBIDDEN")
     print(f"specialist_families={','.join(family_ids)}")
 
-    token = read_env_value(REPO_ROOT / ".env.local", "UPSTOX_ACCESS_TOKEN")
+    token = load_env_value(
+        "UPSTOX_ACCESS_TOKEN",
+        REPO_ROOT / ".env.local",
+        REPO_ROOT / ".env",
+    )
     if not token:
-        raise SystemExit("UPSTOX_ACCESS_TOKEN missing from local .env.local")
+        raise SystemExit("UPSTOX_ACCESS_TOKEN missing from environment, .env.local, and .env")
     market_data = UpstoxMarketData(access_token=token)
     official = NSEEquityUniverse().load_mis_equities()
     by_symbol = {item.trading_symbol.upper(): item for item in official}

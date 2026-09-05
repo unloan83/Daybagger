@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -21,3 +22,15 @@ def read_env_value(path: Path, key: str) -> str:
     if len(matches) > 1:
         raise RuntimeError(f"multiple {key} entries found in {path}")
     return matches[0] if matches else ""
+
+
+def load_env_value(key: str, *paths: Path) -> str:
+    """Load KEY from process environment first, then ordered dotenv paths."""
+    value = os.getenv(key, "").strip()
+    if value:
+        return value
+    for path in paths:
+        value = read_env_value(path, key).strip()
+        if value:
+            return value
+    return ""

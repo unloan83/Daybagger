@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -15,15 +14,16 @@ from daybagger.bootstrap import verify_golden_rules
 from daybagger.config import load_settings
 from daybagger.data.upstox import UpstoxMarketData
 from daybagger.meta.stack import load_meta_spec
-from daybagger.runtime.local_env import read_env_value
+from daybagger.runtime.local_env import load_env_value
 from daybagger.runtime.paper_runtime import DaybaggerPaperRuntime, PaperRuntimeError
 
 
 def load_access_token(repo_root: Path) -> str:
-    token = os.getenv("UPSTOX_ACCESS_TOKEN", "").strip()
-    if token:
-        return token
-    return read_env_value(repo_root / ".env.local", "UPSTOX_ACCESS_TOKEN").strip()
+    return load_env_value(
+        "UPSTOX_ACCESS_TOKEN",
+        repo_root / ".env.local",
+        repo_root / ".env",
+    ).strip()
 
 
 def main() -> int:
@@ -39,7 +39,7 @@ def main() -> int:
         return 2
     token = load_access_token(REPO_ROOT)
     if not token:
-        print("DAYBAGGER PAPER RUNTIME: UPSTOX_ACCESS_TOKEN missing from environment and local .env.local")
+        print("DAYBAGGER PAPER RUNTIME: UPSTOX_ACCESS_TOKEN missing from environment, .env.local, and .env")
         return 3
 
     runtime = DaybaggerPaperRuntime(

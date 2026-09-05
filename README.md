@@ -16,6 +16,9 @@ Daybagger is a **paper-only Indian-equity intraday trading system** built around
 - ₹30,000 default capital, ₹500 max risk/trade, ₹1,000 hard daily loss limit
 - Actual integer quantity sizing and actual-cost recheck before paper execution
 - Learning records executed baseline outcomes; meta promotion remains evidence-gated
+- Runtime stage summaries append to `logs/baseline_runtime_summary.jsonl`
+- Runtime evidence review: `scripts/review_baseline_runtime.py`
+- Historical baseline replay: `scripts/replay_baseline_recent.py --from-date YYYY-MM-DD --to-date YYYY-MM-DD`
 
 ## One authoritative paper decision engine
 
@@ -41,5 +44,11 @@ python scripts/check_runtime.py
 python scripts/check_validation.py
 pytest
 ```
+
+## Evidence workflow
+
+1. Run `python scripts/run_paper_runtime.py` in paper mode to generate staged JSONL summaries and decision traces.
+2. Review actual daily bottlenecks with `python scripts/review_baseline_runtime.py`.
+3. Replay the same baseline on recent sessions with `python scripts/replay_baseline_recent.py --from-date YYYY-MM-DD --to-date YYYY-MM-DD`.
 
 `goldenrules.txt` remains the permanent design authority.

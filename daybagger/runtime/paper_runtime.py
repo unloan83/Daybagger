@@ -64,6 +64,7 @@ class RuntimeCandidate:
 @dataclass(frozen=True, slots=True)
 class RuntimeUniverseStage:
     observed: tuple[ObservableEquity, ...]
+    executable_universe: int
     deep: tuple[ObservableEquity, ...]
     sectors: Mapping[str, str]
 
@@ -91,12 +92,29 @@ class RuntimeExecutionStage:
 class RuntimeCycleResult:
     as_of: datetime
     observed_universe: int
+    executable_universe: int
     deep_symbols: int
+    aligned_symbols: int
     decisions: int
     qualified: int
     fills: int
     exits: int
     no_trade_reasons: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "as_of": self.as_of.isoformat(),
+            "observed_universe": self.observed_universe,
+            "executable_universe": self.executable_universe,
+            "deep_symbols": self.deep_symbols,
+            "aligned_symbols": self.aligned_symbols,
+            "decisions": self.decisions,
+            "qualified": self.qualified,
+            "fills": self.fills,
+            "exits": self.exits,
+            "no_trade_count": len(self.no_trade_reasons),
+            "no_trade_reasons": list(self.no_trade_reasons),
+        }
 
 
 class DaybaggerPaperRuntime:
@@ -158,7 +176,7 @@ class DaybaggerPaperRuntime:
 
         exits = self._manage_open_positions(current)
         if self.guard.state(current) != SessionState.MARKET:
-            return RuntimeCycleResult(current, 0, 0, 0, 0, 0, exits, ("ENTRY_WINDOW_CLOSED",))
+            return RuntimeCycleResult(current, 0, 0, 0, 0, 0, 0, exits, ("ENTRY_WINDOW_CLOSED",))
 
         mandatory_exit = current.replace(
             hour=self.guard.mandatory_exit.hour,
@@ -174,6 +192,7 @@ class DaybaggerPaperRuntime:
                 0,
                 0,
                 0,
+                0,
                 exits,
                 ("BASELINE_HORIZON_EXCEEDS_MANDATORY_EXIT",),
             )
@@ -181,14 +200,16 @@ class DaybaggerPaperRuntime:
         try:
             universe = self._scan_universe()
         except PaperRuntimeError as exc:
-            return RuntimeCycleResult(current, 0, 0, 0, 0, 0, exits, (str(exc),))
+            return RuntimeCycleResult(current, 0, 0, 0, 0, 0, 0, exits, (str(exc),))
         try:
             features = self._build_feature_stage(universe)
         except PaperRuntimeError as exc:
             return RuntimeCycleResult(
                 current,
                 len(universe.observed),
+                universe.executable_universe,
                 len(universe.deep),
+                0,
                 0,
                 0,
                 0,
@@ -201,7 +222,9 @@ class DaybaggerPaperRuntime:
         return RuntimeCycleResult(
             as_of=features.as_of,
             observed_universe=len(universe.observed),
-            deep_symbols=len(features.stock_prefixes),
+            executable_universe=universe.executable_universe,
+            deep_symbols=len(universe.deep),
+            aligned_symbols=len(features.stock_prefixes),
             decisions=len(features.stock_prefixes),
             qualified=len(candidates),
             fills=execution.fills,
@@ -232,6 +255,7 @@ class DaybaggerPaperRuntime:
             raise PaperRuntimeError("INSUFFICIENT_SECTOR_MAPPED_UNIVERSE")
         return RuntimeUniverseStage(
             observed=tuple(observed),
+            executable_universe=len(executable),
             deep=tuple(deep),
             sectors=sectors,
         )

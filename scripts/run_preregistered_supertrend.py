@@ -15,7 +15,7 @@ from daybagger.config import load_settings
 from daybagger.data.universe import NSEEquityUniverse
 from daybagger.data.upstox import UpstoxMarketData
 from daybagger.integration.costs import IndiaEquityIntradayCostModel
-from daybagger.runtime.local_env import read_env_value
+from daybagger.runtime.local_env import load_env_value
 from daybagger.validation.historical import HistoricalCandleClient
 from daybagger.validation.meta_intelligence import _spearman
 from daybagger.validation.default_meta_universe import DEFAULT_META_VALIDATION_SYMBOLS
@@ -95,7 +95,11 @@ def _group(candles):
 
 
 def main() -> int:
-    token = read_env_value(REPO_ROOT / ".env.local", "UPSTOX_ACCESS_TOKEN")
+    token = load_env_value(
+        "UPSTOX_ACCESS_TOKEN",
+        REPO_ROOT / ".env.local",
+        REPO_ROOT / ".env",
+    )
     if not token:
         raise SystemExit("UPSTOX_ACCESS_TOKEN missing")
     settings = load_settings(REPO_ROOT / "config" / "default.toml")

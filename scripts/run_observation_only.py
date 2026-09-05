@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -16,17 +15,18 @@ from daybagger.bootstrap import verify_golden_rules
 from daybagger.config import load_settings
 from daybagger.data.universe import NSEEquityUniverse, usable_for_execution
 from daybagger.data.upstox import UpstoxDataError, UpstoxMarketData
-from daybagger.runtime.local_env import read_env_value
+from daybagger.runtime.local_env import load_env_value
 
 
 NIFTY_KEY = "NSE_INDEX|Nifty 50"
 
 
 def load_access_token(repo_root: Path) -> str:
-    token = os.getenv("UPSTOX_ACCESS_TOKEN", "").strip()
-    if token:
-        return token
-    return read_env_value(repo_root / ".env.local", "UPSTOX_ACCESS_TOKEN").strip()
+    return load_env_value(
+        "UPSTOX_ACCESS_TOKEN",
+        repo_root / ".env.local",
+        repo_root / ".env",
+    ).strip()
 
 
 def observe_once(market_data: UpstoxMarketData, settings, now: datetime) -> dict:

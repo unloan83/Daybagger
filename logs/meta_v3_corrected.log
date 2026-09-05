@@ -1,0 +1,11 @@
+RESEARCH_ENV_OK
+..........................................................               [100%]
+DAYBAGGER LOCKED META-INTELLIGENCE VALIDATION
+method=LOCKED_MULTI_SPECIALIST_CROSS_SECTION_META_V3
+holdout_tuning=FORBIDDEN auto_fix=FORBIDDEN dummy_model=FORBIDDEN
+validation_id=meta-v3-2026-04-01-2026-09-02-20260903130356
+selected_horizon_minutes=15
+development: n=0 avg_net_bps=0.0000 pf=None rank_ic=0.0008 brier=0.074513 baseline_brier=0.074513
+holdout: n=0 avg_net_bps=0.0000 pf=None rank_ic=0.0201 brier=0.051864 baseline_brier=0.051864 session_ci95=[0.0000,0.0000]
+evidence=/home/user/projects/daybagger/research/evidence/meta_intelligence/meta-v3-2026-04-01-2026-09-02-20260903130356.json
+DAYBAGGER META VALIDATION: NO_APPROVAL - development_net_expectancy_non_positive, development_profit_factor_not_above_one, development_calibration_not_better_than_base_rate, holdout_net_expectancy_non_positive, holdout_profit_factor_not_above_one, holdout_calibration_not_better_than_base_rate, holdout_insufficient_selected_opportunities

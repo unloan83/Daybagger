@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 
 from daybagger.validation.metrics import PredictionOutcome, evaluate_predictions
+from daybagger.data.upstox import UpstoxMarketData
+from daybagger.validation.historical import HistoricalCandleClient
 from daybagger.validation.registry import ModelRegistry
 from daybagger.validation.walkforward import DatedItem, chronological_folds
 
@@ -62,3 +64,31 @@ def test_registry_rejects_approval_of_negative_expectancy(tmp_path: Path) -> Non
             approved=True,
             reason="should fail",
         )
+
+
+def test_historical_cache_reuses_verified_upstox_candles(tmp_path: Path) -> None:
+    calls = 0
+
+    def transport(url, headers, timeout):
+        nonlocal calls
+        calls += 1
+        return {
+            "status": "success",
+            "data": {
+                "candles": [
+                    ["2026-09-02T09:15:00+05:30", "100", "101", "99", "100.5", 1000, 0]
+                ]
+            },
+        }
+
+    market_data = UpstoxMarketData(access_token="test", transport=transport)
+    client = HistoricalCandleClient(market_data, cache_dir=tmp_path)
+    kwargs = dict(
+        from_date=date(2026, 9, 2),
+        to_date=date(2026, 9, 2),
+        interval_minutes=1,
+    )
+    first = client.fetch("NSE_EQ|TEST", **kwargs)
+    second = client.fetch("NSE_EQ|TEST", **kwargs)
+    assert len(first) == len(second) == 1
+    assert calls == 1

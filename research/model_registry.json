@@ -70,5 +70,77 @@
     "reason": "development_net_expectancy_non_positive, development_profit_factor_not_above_one, development_calibration_not_better_than_base_rate, holdout_net_expectancy_non_positive, holdout_profit_factor_not_above_one, holdout_calibration_not_better_than_base_rate, holdout_insufficient_selected_opportunities",
     "validation_id": "meta-v3-2026-04-01-2026-09-02-20260903130356",
     "version": "meta-v3"
+  },
+  {
+    "approved": false,
+    "created_at_utc": "2026-09-04T04:45:09.979872+00:00",
+    "metrics": {
+      "avg_net_return_bps": 0.0,
+      "brier_score": 0.10159160997732428,
+      "max_drawdown_bps": 0.0,
+      "median_net_return_bps": 0.0,
+      "observations": 0,
+      "profit_factor": null,
+      "return_stability": 0.0,
+      "win_rate": 0.0
+    },
+    "model_id": "meta_intelligence",
+    "reason": "development_net_expectancy_non_positive, development_profit_factor_not_above_one, development_calibration_not_better_than_base_rate, holdout_net_expectancy_non_positive, holdout_profit_factor_not_above_one, holdout_cross_section_rank_ic_non_positive, holdout_calibration_not_better_than_base_rate, holdout_insufficient_selected_opportunities",
+    "validation_id": "meta-v4-direct-return-2026-04-01-2026-09-02-20260904044339",
+    "version": "meta-v4-direct-return"
+  },
+  {
+    "approved": false,
+    "created_at_utc": "2026-09-04T05:58:19.386122+00:00",
+    "metrics": {
+      "avg_net_return_bps": 0.0,
+      "brier_score": 0.10159160997732428,
+      "max_drawdown_bps": 0.0,
+      "median_net_return_bps": 0.0,
+      "observations": 0,
+      "profit_factor": null,
+      "return_stability": 0.0,
+      "win_rate": 0.0
+    },
+    "model_id": "meta_intelligence",
+    "reason": "development_net_expectancy_non_positive, development_profit_factor_not_above_one, development_calibration_not_better_than_base_rate, holdout_net_expectancy_non_positive, holdout_profit_factor_not_above_one, holdout_cross_section_rank_ic_non_positive, holdout_calibration_not_better_than_base_rate, holdout_insufficient_selected_opportunities",
+    "validation_id": "meta-v4-direct-return-2026-04-01-2026-09-02-20260904055651",
+    "version": "meta-v4-direct-return"
+  },
+  {
+    "approved": false,
+    "created_at_utc": "2026-09-04T08:15:16.399814+00:00",
+    "metrics": {
+      "avg_net_return_bps": 0.0,
+      "brier_score": 0.023026619566949985,
+      "max_drawdown_bps": 0.0,
+      "median_net_return_bps": 0.0,
+      "observations": 0,
+      "profit_factor": null,
+      "return_stability": 0.0,
+      "win_rate": 0.0
+    },
+    "model_id": "meta_intelligence",
+    "reason": "development_net_expectancy_non_positive, development_profit_factor_not_above_one, development_calibration_not_better_than_base_rate, holdout_net_expectancy_non_positive, holdout_profit_factor_not_above_one, holdout_calibration_not_better_than_base_rate, holdout_insufficient_selected_opportunities",
+    "validation_id": "meta-v4-direct-return-2026-04-01-2026-09-02-20260904081405",
+    "version": "meta-v4-direct-return"
+  },
+  {
+    "approved": false,
+    "created_at_utc": "2026-09-04T11:35:50.371367+00:00",
+    "metrics": {
+      "avg_net_return_bps": 0.0,
+      "brier_score": 0.022161547914706325,
+      "max_drawdown_bps": 0.0,
+      "median_net_return_bps": 0.0,
+      "observations": 0,
+      "profit_factor": null,
+      "return_stability": 0.0,
+      "win_rate": 0.0
+    },
+    "model_id": "meta_intelligence",
+    "reason": "development_net_expectancy_non_positive, development_profit_factor_not_above_one, development_calibration_not_better_than_base_rate, holdout_net_expectancy_non_positive, holdout_profit_factor_not_above_one, holdout_calibration_not_better_than_base_rate, holdout_insufficient_selected_opportunities",
+    "validation_id": "meta-v4-direct-return-2026-04-01-2026-09-02-20260904113439",
+    "version": "meta-v4-direct-return"
   }
 ]

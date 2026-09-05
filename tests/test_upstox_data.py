@@ -105,6 +105,19 @@ def test_missing_requested_instrument_fails_closed() -> None:
         client.full_quotes([KEY])
 
 
+def test_incomplete_quote_batch_skips_invalid_snapshot_when_not_required() -> None:
+    def invalid_volume_transport(url, headers, timeout):
+        payload = _transport(url, headers, timeout)
+        if "/market-quote/quotes" in url:
+            payload["data"]["NSE_EQ:RELIANCE"]["volume"] = "NA"
+        return payload
+
+    client = UpstoxMarketData(access_token="test", transport=invalid_volume_transport)
+    assert client.full_quotes([KEY], require_complete=False) == {}
+    with pytest.raises(UpstoxDataError):
+        client.full_quotes([KEY], require_complete=True)
+
+
 def test_duplicate_candle_timestamp_is_rejected() -> None:
     def duplicate_transport(url, headers, timeout):
         if "/market-quote/quotes" in url:

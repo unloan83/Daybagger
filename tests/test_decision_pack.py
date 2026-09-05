@@ -105,6 +105,30 @@ def test_learning_uses_real_outcomes_and_zeroes_negative_expectancy(tmp_path: Pa
     assert store.weights()["good"] > 0
 
 
+def test_learning_veto_requires_sufficient_negative_evidence(tmp_path: Path) -> None:
+    store = ModelLearningStore(
+        tmp_path / "learning.sqlite3", minimum_observations=3
+    )
+    store.initialize()
+    for _ in range(2):
+        store.record(
+            model_id="bad",
+            probability=0.7,
+            predicted_return_bps=30,
+            realised_net_return_bps=-20,
+            favourable_outcome=False,
+        )
+    assert store.vetoed_model_ids() == frozenset()
+    store.record(
+        model_id="bad",
+        probability=0.7,
+        predicted_return_bps=30,
+        realised_net_return_bps=-20,
+        favourable_outcome=False,
+    )
+    assert store.vetoed_model_ids() == frozenset({"bad"})
+
+
 def test_replay_hash_is_deterministic() -> None:
     a = DecisionSnapshot(
         as_of_iso="2026-09-02T10:00:00+05:30",

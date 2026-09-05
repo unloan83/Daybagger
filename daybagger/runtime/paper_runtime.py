@@ -16,7 +16,7 @@ from daybagger.decision.risk import (
     CapitalState,
     ExecutionSizer,
 )
-from daybagger.domain import DecisionStatus, Direction, ExecutionRequest
+from daybagger.domain import DecisionStatus, Direction, ExecutionRequest, Opportunity
 from daybagger.execution.paper import PaperBroker
 from daybagger.integration.costs import IndiaEquityIntradayCostModel
 from daybagger.intelligence.meta_features import (
@@ -239,6 +239,35 @@ class DaybaggerPaperRuntime:
                     features=decision.meta_features,
                 )
             else:
+                vetoed = self.learning_store.vetoed_model_ids()
+                applied_vetoes = sorted(
+                    op.model_id for op in decision.opinions if op.model_id in vetoed
+                )
+                if applied_vetoes:
+                    veto = Opportunity.create(
+                        symbol=symbol,
+                        direction=decision.opportunity.direction,
+                        as_of=as_of,
+                        expected_net_return_bps=decision.opportunity.expected_net_return_bps,
+                        confidence=decision.opportunity.confidence,
+                        status=DecisionStatus.REJECTED,
+                        reason="LEARNED_MODEL_VETO:" + ",".join(applied_vetoes),
+                        opinion_ids=[op.opinion_id for op in decision.opinions],
+                    )
+                    self.trace_store.record_decision(
+                        symbol=symbol,
+                        instrument_key=item.instrument.instrument_key,
+                        as_of=as_of,
+                        opportunity=veto,
+                        allocation_approved=False,
+                        estimated_cost_bps=decision.estimated_total_cost_bps,
+                        opinions=decision.opinions,
+                        validation_ids=validation_ids,
+                        reference_price=item.quote.last_price,
+                        features=decision.meta_features,
+                    )
+                    no_trade.append(f"{symbol}:LEARNED_MODEL_VETO")
+                    continue
                 candidates.append(
                     RuntimeCandidate(
                         observed=item,

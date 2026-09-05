@@ -87,6 +87,12 @@ class PortfolioEvidence:
     session_ci95_low_bps: float
     session_ci95_high_bps: float
     baseline_brier: float
+    scored_rows: int
+    positive_edge_rows: int
+    allocation_rejected_rows: int
+    allocation_rejection_reasons: Mapping[str, int]
+    mean_predicted_net_bps: float
+    max_predicted_net_bps: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,19 +255,19 @@ def build_meta_samples(
                 if entry_price <= 0 or stop_bps <= 0:
                     continue
                 window = candles[entry_index : exit_index + 1]
-                long_gross = _gross_with_range_stop(
+                long_gross = _triple_barrier_gross(
                     entry_price=entry_price,
-                    exit_price=candles[exit_index].close,
                     bars=window,
                     direction=Direction.LONG,
                     stop_bps=stop_bps,
-                )
-                short_gross = _gross_with_range_stop(
-                    entry_price=entry_price,
                     exit_price=candles[exit_index].close,
+                )
+                short_gross = _triple_barrier_gross(
+                    entry_price=entry_price,
                     bars=window,
                     direction=Direction.SHORT,
                     stop_bps=stop_bps,
+                    exit_price=candles[exit_index].close,
                 )
                 result.append(
                     MetaSample(
@@ -294,6 +300,7 @@ def validate_meta_intelligence(
     approved_path: Path | None = None,
     evidence_dir: Path | None = None,
     registry_path: Path | None = None,
+    family_ids: Sequence[str] = BASE_FAMILIES,
 ) -> MetaValidationResult:
     repo_root = repo_root.resolve()
     verify_golden_rules(repo_root)
@@ -308,6 +315,12 @@ def validate_meta_intelligence(
         raise ValueError(
             f"validation horizons are locked at {FIXED_HORIZONS}; post-result tuning is forbidden"
         )
+    selected_families = tuple(dict.fromkeys(str(family) for family in family_ids))
+    if not selected_families:
+        raise ValueError("at least one specialist family is required")
+    unknown_families = sorted(set(selected_families) - set(SPECIALIST_FAMILIES))
+    if unknown_families:
+        raise ValueError(f"unknown specialist families: {unknown_families}")
     if len(symbol_to_instrument) < 6:
         raise ValueError("validation universe must contain at least six equities")
     if set(symbol_to_instrument) - set(sector_by_symbol):
@@ -319,7 +332,10 @@ def validate_meta_intelligence(
     registry_path = registry_path or repo_root / "research" / "model_registry.json"
 
     market_data = UpstoxMarketData(access_token=access_token)
-    historical = HistoricalCandleClient(market_data)
+    historical = HistoricalCandleClient(
+        market_data,
+        cache_dir=repo_root / "data" / "historical_cache",
+    )
     contexts = {
         "market": group_sessions(historical.fetch(NIFTY_KEY, from_date=from_date, to_date=to_date)),
         "bank": group_sessions(historical.fetch(BANK_NIFTY_KEY, from_date=from_date, to_date=to_date)),
@@ -349,7 +365,12 @@ def validate_meta_intelligence(
     # Paper slippage is a declared execution assumption and is charged on BOTH
     # entry and exit so historical validation cannot be more optimistic than the
     # canonical paper runtime merely because historical bid/ask is unavailable.
-    statutory_cost_bps = cost_model.round_trip_bps_for_notional(validation_notional_inr)
+    validation_position_notional_inr = validation_notional_inr * Decimal(
+        str(settings.risk.max_position_fraction)
+    )
+    statutory_cost_bps = cost_model.round_trip_bps_for_notional(
+        validation_position_notional_inr
+    )
     execution_allowance_bps = 2.0 * settings.execution.paper_slippage_bps
     cost_bps = statutory_cost_bps + execution_allowance_bps
 
@@ -395,6 +416,7 @@ def validate_meta_intelligence(
             development_dates=development_dates,
             horizon_minutes=horizon,
             validation_id=validation_id,
+            family_ids=selected_families,
         )
         if not oof:
             continue
@@ -465,6 +487,7 @@ def validate_meta_intelligence(
         samples=development,
         horizon_minutes=horizon,
         validation_id=validation_id,
+        family_ids=selected_families,
     )
     full_oof = horizon_oof[horizon]
     feature_names = choose_meta_feature_names([row.meta_features for row in full_oof])
@@ -524,14 +547,27 @@ def validate_meta_intelligence(
 
     evidence_summary = {
         "method": "LOCKED_DIRECT_RETURN_CROSS_SECTION_META_V4",
+        "specialist_families": list(selected_families),
         "horizons_considered": list(FIXED_HORIZONS),
         "selected_horizon_minutes": horizon,
         "historical_spread_policy": "NOT_INVENTED; live spread required at execution",
         "historical_execution_policy": "STATUTORY_COST_PLUS_DECLARED_TWO_SIDED_PAPER_SLIPPAGE; NO_SYNTHETIC_SPREAD",
         "stop_policy": "decision-time observed session range; same in historical and live paper",
+        "label_policy": "TRIPLE_BARRIER_TARGET_STOP_OR_TIME_EXIT",
+        "fold_policy": "EXPANDING_OOF_WITH_HORIZON_PURGE_AND_EMBARGO",
         "cost_bps_known_statutory": statutory_cost_bps,
+        "cost_notional_account_inr": float(validation_notional_inr),
+        "cost_notional_position_inr": float(validation_position_notional_inr),
         "cost_bps_execution_allowance": execution_allowance_bps,
         "cost_bps_validation_total_excluding_unknown_historical_spread": cost_bps,
+        "cost_scenarios_bps": cost_model.validation_cost_scenarios(
+            notionals={
+                "account_capital": validation_notional_inr,
+                "max_position": validation_notional_inr
+                * Decimal(str(settings.risk.max_position_fraction)),
+            },
+            paper_slippage_bps_per_side=settings.execution.paper_slippage_bps,
+        ),
         "development": _portfolio_to_dict(selected_dev.development_eval),
         "holdout": _portfolio_to_dict(holdout_evidence),
         "horizon_development_evidence": [
@@ -615,6 +651,7 @@ def _build_expanding_oof_rows(
     validation_id: str,
     minimum_train_sessions: int = 30,
     test_block_sessions: int = 5,
+    family_ids: Sequence[str] = BASE_FAMILIES,
 ) -> list[MetaTrainingRow]:
     sample_dates = set(sample.session_date for sample in samples)
     dates = [d for d in development_dates if d in sample_dates]
@@ -626,12 +663,21 @@ def _build_expanding_oof_rows(
         train_dates = set(dates[:start])
         train = [sample for sample in samples if sample.session_date in train_dates]
         test = [sample for sample in samples if sample.session_date in test_dates]
+        if test:
+            test_start = min(sample.as_of for sample in test)
+            embargo_start = test_start - timedelta(minutes=horizon_minutes)
+            train = [
+                sample
+                for sample in train
+                if sample.as_of + timedelta(minutes=horizon_minutes) < embargo_start
+            ]
         if not train or not test:
             continue
         specs = _fit_base_specs(
             samples=train,
             horizon_minutes=horizon_minutes,
             validation_id=f"{validation_id}-oof-{start}",
+            family_ids=family_ids,
         )
         for sample in test:
             try:
@@ -652,9 +698,10 @@ def _fit_base_specs(
     samples: Sequence[MetaSample],
     horizon_minutes: int,
     validation_id: str,
+    family_ids: Sequence[str] = BASE_FAMILIES,
 ) -> tuple[ValidatedModelSpec, ...]:
     result: list[ValidatedModelSpec] = []
-    for family_id in BASE_FAMILIES:
+    for family_id in family_ids:
         family = SPECIALIST_FAMILIES[family_id]
         usable = [
             sample for sample in samples
@@ -783,12 +830,10 @@ def _evaluate_portfolio(
     by_time: dict[datetime, list[tuple[MetaTrainingRow, Direction, float, float, float]]] = {}
     for row in rows:
         selected = {name: float(row.meta_features[name]) for name in feature_names}
-        long_gross_pred = long_model.expected_gross_return_bps(selected)
-        short_gross_pred = short_model.expected_gross_return_bps(selected)
+        long_gross_pred, long_p = long_model.prediction_summary(selected, cost_bps)
+        short_gross_pred, short_p = short_model.prediction_summary(selected, cost_bps)
         long_net_pred = long_gross_pred - cost_bps
         short_net_pred = short_gross_pred - cost_bps
-        long_p = long_model.probability_above(selected, cost_bps)
-        short_p = short_model.probability_above(selected, cost_bps)
         if long_net_pred >= short_net_pred:
             direction, predicted, probability = Direction.LONG, long_net_pred, long_p
         else:
@@ -827,6 +872,8 @@ def _evaluate_portfolio(
     daily_pnl: dict[date, Decimal] = {}
     selected_outcomes: list[PredictionOutcome] = []
     selected_session_returns: dict[date, float] = {}
+    allocation_rejected_rows = 0
+    allocation_rejection_reasons: dict[str, int] = {}
 
     for as_of in sorted(by_time):
         still_open = []
@@ -871,6 +918,10 @@ def _evaluate_portfolio(
                 estimated_volatility_bps=float(row.sample.raw_features["stock_session_range_bps"]),
             )
             if not allocation.approved:
+                allocation_rejected_rows += 1
+                allocation_rejection_reasons[allocation.reason] = (
+                    allocation_rejection_reasons.get(allocation.reason, 0) + 1
+                )
                 continue
             selected_outcomes.append(
                 PredictionOutcome(
@@ -923,6 +974,12 @@ def _evaluate_portfolio(
         session_ci95_low_bps=ci_low,
         session_ci95_high_bps=ci_high,
         baseline_brier=baseline_brier,
+        scored_rows=len(scored),
+        positive_edge_rows=sum(1 for item in scored if item[2] > 0),
+        allocation_rejected_rows=allocation_rejected_rows,
+        allocation_rejection_reasons=dict(allocation_rejection_reasons),
+        mean_predicted_net_bps=mean(item[2] for item in scored),
+        max_predicted_net_bps=max(item[2] for item in scored),
     )
 
 
@@ -944,6 +1001,41 @@ def _gross_with_range_stop(
         stop = entry_price * (Decimal("1") + stop_fraction)
         if any(bar.high >= stop for bar in bars):
             return -float(stop_bps)
+        return float((entry_price - exit_price) / entry_price * Decimal("10000"))
+    raise ValueError("FLAT cannot be simulated")
+
+
+def _triple_barrier_gross(
+    *,
+    entry_price: Decimal,
+    exit_price: Decimal,
+    bars: Sequence[IntradayCandle],
+    direction: Direction,
+    stop_bps: float,
+) -> float:
+    """Return the first touched volatility-scaled barrier, else time exit."""
+    if stop_bps <= 0:
+        raise ValueError("stop_bps must be positive")
+    target_bps = stop_bps
+    stop_fraction = Decimal(str(stop_bps)) / Decimal("10000")
+    target_fraction = stop_fraction
+    if direction == Direction.LONG:
+        target = entry_price * (Decimal("1") + target_fraction)
+        stop = entry_price * (Decimal("1") - stop_fraction)
+        for bar in bars:
+            if bar.low <= stop:
+                return -float(stop_bps)
+            if bar.high >= target:
+                return float(target_bps)
+        return float((exit_price / entry_price - Decimal("1")) * Decimal("10000"))
+    if direction == Direction.SHORT:
+        target = entry_price * (Decimal("1") - target_fraction)
+        stop = entry_price * (Decimal("1") + stop_fraction)
+        for bar in bars:
+            if bar.high >= stop:
+                return -float(stop_bps)
+            if bar.low <= target:
+                return float(target_bps)
         return float((entry_price - exit_price) / entry_price * Decimal("10000"))
     raise ValueError("FLAT cannot be simulated")
 
@@ -1001,4 +1093,10 @@ def _portfolio_to_dict(evidence: PortfolioEvidence) -> dict:
         "session_ci95_low_bps": evidence.session_ci95_low_bps,
         "session_ci95_high_bps": evidence.session_ci95_high_bps,
         "baseline_brier": evidence.baseline_brier,
+        "scored_rows": evidence.scored_rows,
+        "positive_edge_rows": evidence.positive_edge_rows,
+        "allocation_rejected_rows": evidence.allocation_rejected_rows,
+        "allocation_rejection_reasons": dict(evidence.allocation_rejection_reasons),
+        "mean_predicted_net_bps": evidence.mean_predicted_net_bps,
+        "max_predicted_net_bps": evidence.max_predicted_net_bps,
     }

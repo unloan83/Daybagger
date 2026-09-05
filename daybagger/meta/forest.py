@@ -88,6 +88,18 @@ class ForestRegressorSpec:
         values = self.tree_predictions_bps(features)
         return sum(values) / len(values)
 
+    def prediction_summary(
+        self,
+        features: Mapping[str, float],
+        threshold_bps: float,
+    ) -> tuple[float, float]:
+        """Return mean tree forecast and threshold-vote probability in one pass."""
+        values = self.tree_predictions_bps(features)
+        return (
+            sum(values) / len(values),
+            sum(value > threshold_bps for value in values) / len(values),
+        )
+
     def prediction_std_bps(self, features: Mapping[str, float]) -> float:
         values = self.tree_predictions_bps(features)
         if len(values) < 2:
@@ -97,8 +109,7 @@ class ForestRegressorSpec:
 
     def probability_above(self, features: Mapping[str, float], threshold_bps: float) -> float:
         """Empirical tree-vote probability that gross return clears a supplied cost threshold."""
-        values = self.tree_predictions_bps(features)
-        return sum(1 for value in values if value > threshold_bps) / len(values)
+        return self.prediction_summary(features, threshold_bps)[1]
 
     def to_dict(self) -> dict:
         self.validate()

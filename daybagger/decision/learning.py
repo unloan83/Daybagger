@@ -157,6 +157,18 @@ class ModelLearningStore:
             for mid, stat in self.stats(as_of=as_of).items()
         }
 
+    def vetoed_model_ids(self, *, as_of: datetime | None = None) -> frozenset[str]:
+        """Return models with sufficient evidence for a conservative veto.
+
+        Learning can suppress a proven-bad model, but it cannot promote an
+        unproven model or improve a prediction beyond its validated artifact.
+        """
+        return frozenset(
+            model_id
+            for model_id, stat in self.stats(as_of=as_of).items()
+            if stat.eligible and stat.conservative_net_return_bps <= 0
+        )
+
 
 def _student_t_critical_95(degrees_of_freedom: int) -> float:
     """

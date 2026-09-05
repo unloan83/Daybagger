@@ -291,10 +291,21 @@ def _base_opinions(
 def load_meta_spec(path: Path) -> MetaIntelligenceSpec | None:
     if not path.exists():
         return None
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict) or not payload.get("approved", False):
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or not payload.get("approved", False):
+            return None
+        spec = MetaIntelligenceSpec.from_dict(payload)
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        KeyError,
+        TypeError,
+        ValueError,
+        RuntimeError,
+    ):
         return None
-    spec = MetaIntelligenceSpec.from_dict(payload)
     if spec.version != RUNTIME_META_VERSION:
         return None
     return spec

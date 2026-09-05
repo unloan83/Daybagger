@@ -7,6 +7,8 @@ from daybagger.decision.learning import ModelLearningStore
 from daybagger.domain import Direction, ModelOpinion
 from daybagger.operations.outcomes import OutcomeLearner
 from daybagger.operations.readiness import run_readiness
+from daybagger.meta.stack import load_meta_spec
+from scripts.run_paper_runtime import load_access_token
 
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=timezone.utc)
@@ -51,6 +53,25 @@ def test_readiness_fails_closed_without_models_or_token(tmp_path: Path):
     assert report.ready is False
     assert "UPSTOX_TOKEN_MISSING" in report.failures
     assert "NO_APPROVED_VALIDATED_META_MODEL" in report.failures
+
+
+def test_malformed_meta_model_fails_closed(tmp_path: Path):
+    model_path = tmp_path / "validated_meta_model.json"
+    model_path.write_text("{not-json", encoding="utf-8")
+
+    assert load_meta_spec(model_path) is None
+
+    model_path.write_text('{"approved": true, "version": "meta-v4-direct-return"}', encoding="utf-8")
+    assert load_meta_spec(model_path) is None
+
+
+def test_runtime_prefers_environment_token(monkeypatch, tmp_path: Path):
+    (tmp_path / ".env.local").write_text(
+        "UPSTOX_ACCESS_TOKEN=file-token\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("UPSTOX_ACCESS_TOKEN", "environment-token")
+
+    assert load_access_token(tmp_path) == "environment-token"
 
 
 def test_rejected_decision_retains_full_opinion_for_later_learning(tmp_path: Path):

@@ -6,3 +6,4 @@ __pycache__/
 .pytest_cache/
 data/*.sqlite3
 data/sector_cache.json
+data/historical_cache/

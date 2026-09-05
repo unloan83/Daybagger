@@ -101,6 +101,29 @@ class IndiaEquityIntradayCostModel:
         """
         return self.round_trip_bps_for_notional(Decimal("1000"))
 
+    def validation_cost_scenarios(
+        self,
+        *,
+        notionals: dict[str, Decimal],
+        paper_slippage_bps_per_side: float,
+        spread_scenarios_bps: tuple[float, ...] = (0.0, 4.0, 8.0),
+    ) -> dict[str, dict[str, float]]:
+        """Return declared cost hurdles for research sensitivity reporting."""
+        if paper_slippage_bps_per_side < 0:
+            raise ValueError("paper_slippage_bps_per_side cannot be negative")
+        if any(spread < 0 for spread in spread_scenarios_bps):
+            raise ValueError("spread scenarios cannot be negative")
+        result: dict[str, dict[str, float]] = {}
+        for label, notional in notionals.items():
+            statutory = self.round_trip_bps_for_notional(notional)
+            result[label] = {
+                f"spread_{spread:g}_bps": statutory
+                + spread
+                + 2.0 * paper_slippage_bps_per_side
+                for spread in spread_scenarios_bps
+            }
+        return result
+
 
 def _money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

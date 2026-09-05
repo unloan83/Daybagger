@@ -1,0 +1,14 @@
+{
+  "atr_lookback": 14,
+  "cost_bps": 31.14666666666667,
+  "experiment": "PREREGISTERED_SUPERTREND_ATR",
+  "from_date": "2026-01-05",
+  "horizon_minutes": 15,
+  "mean_realised_net_bps": -31.266216690485873,
+  "multiplier": 3.0,
+  "pass": false,
+  "positive_edge_rows": 3117,
+  "rank_ic": -0.049693081944310234,
+  "scored_rows": 42688,
+  "to_date": "2026-03-31"
+}

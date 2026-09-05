@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import argparse
 from datetime import date
 from pathlib import Path
 
@@ -24,9 +25,18 @@ TO_DATE = date(2026, 9, 2)
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--families",
+        default="relative_strength,trend_pullback,volume_participation",
+        help="Comma-separated specialist families declared before validation.",
+    )
+    args = parser.parse_args()
+    family_ids = tuple(item.strip() for item in args.families.split(",") if item.strip())
     print("DAYBAGGER LOCKED DIRECT-RETURN META VALIDATION")
     print("method=LOCKED_DIRECT_RETURN_CROSS_SECTION_META_V4")
     print("holdout_tuning=FORBIDDEN auto_fix=FORBIDDEN dummy_model=FORBIDDEN")
+    print(f"specialist_families={','.join(family_ids)}")
 
     token = read_env_value(REPO_ROOT / ".env.local", "UPSTOX_ACCESS_TOKEN")
     if not token:
@@ -70,6 +80,7 @@ def main() -> int:
         institutional_history=institutional,
         from_date=FROM_DATE,
         to_date=TO_DATE,
+        family_ids=family_ids,
     )
     print(f"validation_id={result.validation_id}")
     print(f"selected_horizon_minutes={result.selected_horizon_minutes}")

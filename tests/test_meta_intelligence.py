@@ -19,7 +19,7 @@ from daybagger.intelligence.upstox_external import (
     lagged_institutional_features,
 )
 from daybagger.meta.forest import export_random_forest_regressor
-from daybagger.validation.meta_intelligence import _gross_with_range_stop, _spearman
+from daybagger.validation.meta_intelligence import _gross_with_range_stop, _spearman, _triple_barrier_gross
 
 
 INDIA = ZoneInfo("Asia/Kolkata")
@@ -74,6 +74,9 @@ def test_exported_forest_matches_sklearn_regression_and_tree_vote_probability():
         tree_preds = [float(est.predict([row])[0]) for est in model.estimators_]
         expected_probability = sum(v > 8.0 for v in tree_preds) / len(tree_preds)
         assert spec.probability_above({"a": row[0], "b": row[1]}, 8.0) == pytest.approx(expected_probability)
+        summary = spec.prediction_summary({"a": row[0], "b": row[1]}, 8.0)
+        assert summary[0] == pytest.approx(expected, abs=1e-12)
+        assert summary[1] == pytest.approx(expected_probability)
 
 
 def test_meta_features_are_timestamp_aligned_and_volume_uses_prior_sessions_only():
@@ -176,6 +179,22 @@ def test_range_stop_is_side_correct_and_conservative():
     )
     assert long_ret == pytest.approx(300.0)
     assert short_ret == pytest.approx(-300.0)
+
+
+def test_triple_barrier_returns_target_stop_or_time_exit():
+    from daybagger.domain import Direction
+
+    start = datetime(2026, 9, 3, 10, 0, tzinfo=INDIA)
+    target_bars = _bars("S", start, n=3, base="100", step="1")
+    assert _triple_barrier_gross(
+        entry_price=Decimal("100"), exit_price=Decimal("103"),
+        bars=target_bars, direction=Direction.LONG, stop_bps=100.0,
+    ) == pytest.approx(100.0)
+    stop_bars = _bars("S", start, n=3, base="100", step="-1")
+    assert _triple_barrier_gross(
+        entry_price=Decimal("100"), exit_price=Decimal("97"),
+        bars=stop_bars, direction=Direction.LONG, stop_bps=100.0,
+    ) == pytest.approx(-100.0)
 
 
 def test_spearman_detects_cross_section_ranking_direction():
@@ -282,6 +301,10 @@ def test_empty_selection_uses_baseline_brier_not_fake_zero():
     )
     assert evidence.metrics.observations == 0
     assert evidence.metrics.brier_score == pytest.approx(evidence.baseline_brier)
+    assert evidence.scored_rows == 1
+    assert evidence.positive_edge_rows == 0
+    assert evidence.allocation_rejected_rows == 0
+    assert evidence.allocation_rejection_reasons == {}
 
 
 def test_validation_notional_cost_uses_actual_30000_scale():
@@ -292,3 +315,34 @@ def test_validation_notional_cost_uses_actual_30000_scale():
     conservative_small = model.conservative_linear_round_trip_bps()
     assert actual == pytest.approx(19.28, abs=0.02)
     assert actual < conservative_small
+
+
+def test_cost_scenarios_include_realistic_position_size_and_spread():
+    from daybagger.integration.costs import IndiaEquityIntradayCostModel
+
+    scenarios = IndiaEquityIntradayCostModel().validation_cost_scenarios(
+        notionals={"account": Decimal("30000"), "position": Decimal("15000")},
+        paper_slippage_bps_per_side=2.0,
+    )
+    assert scenarios["account"]["spread_0_bps"] == pytest.approx(23.28, abs=0.02)
+    assert scenarios["position"]["spread_0_bps"] > scenarios["account"]["spread_0_bps"]
+    assert scenarios["position"]["spread_8_bps"] > scenarios["position"]["spread_0_bps"]
+
+
+def test_validation_family_selection_rejects_unknown_or_empty_sets():
+    from pathlib import Path
+    from daybagger.validation.meta_intelligence import validate_meta_intelligence
+
+    common = dict(
+        repo_root=Path("."),
+        access_token="token",
+        symbol_to_instrument={"AAA": "key"},
+        sector_by_symbol={"AAA": "Tech"},
+        institutional_history=None,
+        from_date=date(2026, 1, 1),
+        to_date=date(2026, 2, 1),
+    )
+    with pytest.raises(ValueError, match="at least one specialist family"):
+        validate_meta_intelligence(**common, family_ids=())
+    with pytest.raises(ValueError, match="unknown specialist families"):
+        validate_meta_intelligence(**common, family_ids=("unknown",))

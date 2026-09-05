@@ -1,0 +1,167 @@
+{
+  "approval_checks": {
+    "all_holdout_sessions_represented": true,
+    "better_than_climatology_brier": true,
+    "positive_95pct_session_bootstrap_lower_bound": false,
+    "positive_holdout_expectancy": false,
+    "positive_holdout_profit_factor": false
+  },
+  "approved": false,
+  "approved_spec": null,
+  "benchmark_key": "NSE_INDEX|Nifty 50",
+  "candidate_scores": [
+    {
+      "C": 0.1,
+      "direction": "LONG",
+      "metrics": {
+        "avg_net_return_bps": -28.227280672587547,
+        "brier_score": 0.10069841959351633,
+        "max_drawdown_bps": 101629.65292982779,
+        "median_net_return_bps": -28.626451264478433,
+        "observations": 3600,
+        "profit_factor": 0.07825485123340174,
+        "return_stability": -1.0034152204678184,
+        "win_rate": 0.11361111111111111
+      }
+    },
+    {
+      "C": 1.0,
+      "direction": "LONG",
+      "metrics": {
+        "avg_net_return_bps": -28.227280672587547,
+        "brier_score": 0.1007179216449348,
+        "max_drawdown_bps": 101629.65292982779,
+        "median_net_return_bps": -28.626451264478433,
+        "observations": 3600,
+        "profit_factor": 0.07825485123340174,
+        "return_stability": -1.0034152204678184,
+        "win_rate": 0.11361111111111111
+      }
+    },
+    {
+      "C": 10.0,
+      "direction": "LONG",
+      "metrics": {
+        "avg_net_return_bps": -28.227280672587547,
+        "brier_score": 0.10071995686553116,
+        "max_drawdown_bps": 101629.65292982779,
+        "median_net_return_bps": -28.626451264478433,
+        "observations": 3600,
+        "profit_factor": 0.07825485123340174,
+        "return_stability": -1.0034152204678184,
+        "win_rate": 0.11361111111111111
+      }
+    },
+    {
+      "C": 0.1,
+      "direction": "SHORT",
+      "metrics": {
+        "avg_net_return_bps": -26.07271932741245,
+        "brier_score": 0.11517756423395552,
+        "max_drawdown_bps": 93861.78957868463,
+        "median_net_return_bps": -25.673548735521564,
+        "observations": 3600,
+        "profit_factor": 0.08308236311759569,
+        "return_stability": -0.9268254960711704,
+        "win_rate": 0.13277777777777777
+      }
+    },
+    {
+      "C": 1.0,
+      "direction": "SHORT",
+      "metrics": {
+        "avg_net_return_bps": -26.07271932741245,
+        "brier_score": 0.11519253711228497,
+        "max_drawdown_bps": 93861.78957868463,
+        "median_net_return_bps": -25.673548735521564,
+        "observations": 3600,
+        "profit_factor": 0.08308236311759569,
+        "return_stability": -0.9268254960711704,
+        "win_rate": 0.13277777777777777
+      }
+    },
+    {
+      "C": 10.0,
+      "direction": "SHORT",
+      "metrics": {
+        "avg_net_return_bps": -26.07271932741245,
+        "brier_score": 0.11519391109046367,
+        "max_drawdown_bps": 93861.78957868463,
+        "median_net_return_bps": -25.673548735521564,
+        "observations": 3600,
+        "profit_factor": 0.08308236311759569,
+        "return_stability": -0.9268254960711704,
+        "win_rate": 0.13277777777777777
+      }
+    }
+  ],
+  "development_metrics": {
+    "avg_net_return_bps": -26.07271932741245,
+    "brier_score": 0.11517756423395552,
+    "max_drawdown_bps": 93861.78957868463,
+    "median_net_return_bps": -25.673548735521564,
+    "observations": 3600,
+    "profit_factor": 0.08308236311759569,
+    "return_stability": -0.9268254960711704,
+    "win_rate": 0.13277777777777777
+  },
+  "development_observations": 8280,
+  "development_sessions": 69,
+  "family_id": "trend_pullback",
+  "from_date": "2026-05-06",
+  "goldenrules_sha256": "73e5ff8983e6c10343daf9b7572138d49fdb38541e8b389ac3293d298606c9ed",
+  "historical_bid_ask_available": false,
+  "historical_sessions": 84,
+  "holdout_baseline_brier": 0.08118926054283648,
+  "holdout_metrics": {
+    "avg_net_return_bps": -25.930545390058995,
+    "brier_score": 0.08064880608839735,
+    "max_drawdown_bps": 46674.98170210627,
+    "median_net_return_bps": -25.109881892569884,
+    "observations": 1800,
+    "profit_factor": 0.04426949417344522,
+    "return_stability": -1.1505686091569505,
+    "win_rate": 0.08666666666666667
+  },
+  "holdout_observations": 1800,
+  "holdout_session_mean_ci95_bps": [
+    -27.177048561206494,
+    -24.655728474126864
+  ],
+  "holdout_sessions": 15,
+  "known_round_trip_cost_bps": 27.15,
+  "model_move_assumptions": "gross directional moves; canonical engine subtracts live costs",
+  "reason": "NOT_APPROVED: positive_holdout_expectancy, positive_holdout_profit_factor, positive_95pct_session_bootstrap_lower_bound",
+  "requested_symbols": [
+    "RELIANCE",
+    "HDFCBANK",
+    "ICICIBANK",
+    "INFY",
+    "TCS",
+    "SBIN",
+    "BHARTIARTL",
+    "LT",
+    "AXISBANK",
+    "KOTAKBANK",
+    "ITC",
+    "MARUTI"
+  ],
+  "selected_C": 0.1,
+  "selected_direction": "SHORT",
+  "to_date": "2026-09-02",
+  "usable_symbols": [
+    "RELIANCE",
+    "HDFCBANK",
+    "ICICIBANK",
+    "INFY",
+    "TCS",
+    "SBIN",
+    "BHARTIARTL",
+    "LT",
+    "AXISBANK",
+    "KOTAKBANK",
+    "ITC",
+    "MARUTI"
+  ],
+  "validation_id": "trend-pullback-short-2026-05-06-2026-09-02-20260903071746"
+}

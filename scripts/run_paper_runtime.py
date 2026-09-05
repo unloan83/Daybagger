@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +19,13 @@ from daybagger.runtime.local_env import read_env_value
 from daybagger.runtime.paper_runtime import DaybaggerPaperRuntime, PaperRuntimeError
 
 
+def load_access_token(repo_root: Path) -> str:
+    token = os.getenv("UPSTOX_ACCESS_TOKEN", "").strip()
+    if token:
+        return token
+    return read_env_value(repo_root / ".env.local", "UPSTOX_ACCESS_TOKEN").strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--once", action="store_true", help="run one paper cycle and exit")
@@ -29,9 +37,9 @@ def main() -> int:
     if spec is None:
         print("DAYBAGGER PAPER RUNTIME: NO_APPROVED_META_MODEL - fail closed")
         return 2
-    token = read_env_value(REPO_ROOT / ".env.local", "UPSTOX_ACCESS_TOKEN")
+    token = load_access_token(REPO_ROOT)
     if not token:
-        print("DAYBAGGER PAPER RUNTIME: UPSTOX_ACCESS_TOKEN missing from local .env.local")
+        print("DAYBAGGER PAPER RUNTIME: UPSTOX_ACCESS_TOKEN missing from environment and local .env.local")
         return 3
 
     runtime = DaybaggerPaperRuntime(

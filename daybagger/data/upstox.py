@@ -165,7 +165,12 @@ class UpstoxMarketData:
         for raw in raw_data.values():
             if not isinstance(raw, dict):
                 continue
-            snap = _parse_quote_snapshot(raw)
+            try:
+                snap = _parse_quote_snapshot(raw)
+            except UpstoxDataError:
+                if require_complete:
+                    raise
+                continue
             snapshots[snap.instrument_key] = snap
 
         missing = [key for key in keys if key not in snapshots]

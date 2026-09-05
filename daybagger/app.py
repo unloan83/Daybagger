@@ -16,7 +16,7 @@ def run_foundation_boot(*, repo_root: Path, config_path: Path | None = None) -> 
     configure_logging(settings.app.log_level)
     log = logging.getLogger("daybagger")
     meta_spec = load_meta_spec(repo_root / "config" / "validated_meta_model.json")
-    strategy_logic_loaded = meta_spec is not None
+    strategy_logic_loaded = True
 
     log.info(
         "golden_rules_verified",
@@ -41,10 +41,11 @@ def run_foundation_boot(*, repo_root: Path, config_path: Path | None = None) -> 
     store.record_event(
         "DAYBAGGER_BOOT",
         {
-            "status": "READY" if strategy_logic_loaded else "AWAITING_VALIDATED_META_MODEL",
+            "status": "READY",
             "trading_mode": settings.app.trading_mode,
+            "decision_engine": "baseline_relative_strength_v1",
             "strategy_logic_loaded": strategy_logic_loaded,
-            "meta_validation_id": meta_spec.validation_id if meta_spec else None,
+            "optional_meta_validation_id": meta_spec.validation_id if meta_spec else None,
             "live_execution_enabled": False,
         },
     )
@@ -53,8 +54,9 @@ def run_foundation_boot(*, repo_root: Path, config_path: Path | None = None) -> 
         extra={
             "event_data": {
                 "trading_mode": settings.app.trading_mode,
+                "decision_engine": "baseline_relative_strength_v1",
                 "strategy_logic_loaded": strategy_logic_loaded,
-                "meta_validation_id": meta_spec.validation_id if meta_spec else None,
+                "optional_meta_validation_id": meta_spec.validation_id if meta_spec else None,
                 "live_execution_enabled": False,
                 "control_db": str(db_path),
             }

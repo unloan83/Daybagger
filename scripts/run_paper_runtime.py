@@ -14,7 +14,6 @@ sys.path.insert(0, str(REPO_ROOT))
 from daybagger.bootstrap import verify_golden_rules
 from daybagger.config import load_settings
 from daybagger.data.upstox import UpstoxMarketData
-from daybagger.meta.stack import load_meta_spec
 from daybagger.runtime.local_env import read_env_value
 from daybagger.runtime.paper_runtime import DaybaggerPaperRuntime, PaperRuntimeError
 
@@ -33,10 +32,6 @@ def main() -> int:
 
     verify_golden_rules(REPO_ROOT)
     settings = load_settings(REPO_ROOT / "config" / "default.toml")
-    spec = load_meta_spec(REPO_ROOT / "config" / "validated_meta_model.json")
-    if spec is None:
-        print("DAYBAGGER PAPER RUNTIME: NO_APPROVED_META_MODEL - fail closed")
-        return 2
     token = load_access_token(REPO_ROOT)
     if not token:
         print("DAYBAGGER PAPER RUNTIME: UPSTOX_ACCESS_TOKEN missing from environment and local .env.local")
@@ -46,7 +41,6 @@ def main() -> int:
         repo_root=REPO_ROOT,
         settings=settings,
         market_data=UpstoxMarketData(access_token=token),
-        meta_spec=spec,
     )
     while True:
         now = datetime.now(ZoneInfo(settings.app.timezone))

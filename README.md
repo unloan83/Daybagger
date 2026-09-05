@@ -1,24 +1,25 @@
 # Daybagger
 
-Daybagger is a **paper-only Indian-equity meta-intelligence trading system** built around one canonical production path:
+Daybagger is a **paper-only Indian-equity intraday trading system** built around one canonical production path:
 
-**official market data → market/sector/stock/flow intelligence → validated specialists → direct future-return meta-model → cross-sectional net-edge ranking → portfolio-aware risk/quantity sizing → paper execution → ledger → accepted/rejected outcome learning**
+**official market data → market/sector/stock intelligence → deterministic relative-strength baseline ranking → portfolio-aware risk/quantity sizing → paper execution → ledger → outcome learning**
 
 ## Current operating state
 
 - Real paper runtime: `scripts/run_paper_runtime.py`
 - Locked meta validation: `scripts/validate_meta_intelligence.py`
-- Runtime model: `config/validated_meta_model.json` **only after genuine OOS approval**
+- Canonical paper strategy: built-in cross-sectional relative-strength baseline
+- Runtime model artifact: `config/validated_meta_model.json` remains **research-only until genuine OOS approval**
 - Live broker execution: **disabled**
 - Missing/invalid evidence: **fail closed / no trade**
 - Broad official NSE MIS quote scan with resource-bounded deep candle analysis
 - ₹30,000 default capital, ₹500 max risk/trade, ₹1,000 hard daily loss limit
 - Actual integer quantity sizing and actual-cost recheck before paper execution
-- Learning requires sufficient recent evidence and includes rejected opportunities
+- Learning records executed baseline outcomes; meta promotion remains evidence-gated
 
-## One authoritative decision engine
+## One authoritative paper decision engine
 
-The production decision authority is `daybagger.meta.stack.decide_meta()` as orchestrated by `DaybaggerPaperRuntime`. Legacy single-specialist execution engines are intentionally absent so replay/live evolution cannot drift into competing decision paths.
+The canonical paper decision authority is the staged `DaybaggerPaperRuntime`, which currently uses a deterministic cross-sectional relative-strength baseline. Meta models remain a research track until they produce genuine OOS edge.
 
 ## Economics
 

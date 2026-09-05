@@ -52,7 +52,7 @@ def test_readiness_fails_closed_without_models_or_token(tmp_path: Path):
     )
     assert report.ready is False
     assert "UPSTOX_TOKEN_MISSING" in report.failures
-    assert "NO_APPROVED_VALIDATED_META_MODEL" in report.failures
+    assert "BASELINE_RELATIVE_STRENGTH_RUNTIME_READY" in report.checks
 
 
 def test_malformed_meta_model_fails_closed(tmp_path: Path):

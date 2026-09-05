@@ -1,17 +1,16 @@
 # Daybagger Canonical Architecture
 
-There is exactly **one production decision path**.
+There is exactly **one production paper decision path**.
 
 1. **Official observations** — NSE/Upstox data only; missing/invalid evidence fails closed.
 2. **Broad intelligence** — market, sector, stock, cross-section, institutional/flow, volatility and executable microstructure; additional sources are evidence-gated.
-3. **Specialist evidence** — validated probabilistic base models, never independent production engines.
-4. **Meta intelligence** — nonlinear direct-return forest combines specialist + context evidence and predicts side-specific future gross return in bps.
-5. **Net-edge gate** — subtract conservative statutory cost, real live spread and declared two-sided execution slippage.
-6. **Cross-sectional ranking** — compare all qualified opportunities simultaneously.
-7. **Portfolio risk** — sequential cash/open-risk reservation, daily-loss halt, drawdown-aware allocation, integer quantity sizing and actual-cost recheck.
-8. **Paper execution** — fresh quote required; actual broker fill is authoritative; live orders are absent.
-9. **Ledger & exits** — authoritative fills, costs, stop/horizon/EOD exits and exact realised P&L.
-10. **Learning** — accepted and rejected opportunities are labelled from genuine future candles; influence requires sufficient recent evidence and conservative uncertainty adjustment.
+3. **Baseline signal** — deterministic relative-strength ranking combines stock, sector, market, volume and executable spread evidence.
+4. **Net-edge gate** — subtract conservative statutory cost, real live spread and declared two-sided execution slippage.
+5. **Cross-sectional ranking** — compare all qualified opportunities simultaneously.
+6. **Portfolio risk** — sequential cash/open-risk reservation, daily-loss halt, drawdown-aware allocation, integer quantity sizing and actual-cost recheck.
+7. **Paper execution** — fresh quote required; actual broker fill is authoritative; live orders are absent.
+8. **Ledger & exits** — authoritative fills, costs, stop/horizon/EOD exits and exact realised P&L.
+9. **Learning** — executed baseline outcomes are labelled from genuine future candles; meta influence remains offline until evidence earns promotion.
 
 ## Model research protocol
 
@@ -27,7 +26,7 @@ There is exactly **one production decision path**.
 
 - Broad quote scan covers the official NSE MIS universe in Upstox-sized batches.
 - Expensive minute-candle analysis is capped to a focused liquid subset.
-- Training is offline/research-side; the production forest is exported to a standard-library JSON-style spec so OCI runtime remains lightweight.
+- Training is offline/research-side; experimental specialist/meta models remain separate from the canonical paper runtime until they pass locked OOS validation.
 - Official market timings/status gate sessions; no hand-maintained holiday assumptions.
 - Bounded retry/backoff applies only to transient transport/429/5xx failures; authentication/data-integrity errors fail closed.
 
@@ -35,7 +34,7 @@ There is exactly **one production decision path**.
 
 - `goldenrules.txt` must exist and be non-empty.
 - Paper mode only.
-- Meta model must be genuinely validated before runtime readiness can pass.
+- Baseline paper runtime must remain deterministic and cost-aware; experimental meta models stay optional until validated.
 - Candidate ≠ trade; prediction ≠ order; order ≠ fill.
 - No synthetic candles, quotes, spread, outcomes, validation evidence or confidence.
 - No duplicate decision runtimes.

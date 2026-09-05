@@ -20,7 +20,7 @@ def run_readiness(
     access_token_present: bool,
     meta_spec: MetaIntelligenceSpec | None = None,
 ) -> ReadinessReport:
-    """Production readiness for the ONE canonical meta-runtime."""
+    """Production readiness for the canonical baseline paper runtime."""
     checks: list[str] = []
     failures: list[str] = []
 
@@ -35,14 +35,14 @@ def run_readiness(
     else:
         failures.append("UPSTOX_TOKEN_MISSING")
 
-    if meta_spec is None:
-        failures.append("NO_APPROVED_VALIDATED_META_MODEL")
-    else:
+    checks.append("BASELINE_RELATIVE_STRENGTH_RUNTIME_READY")
+
+    if meta_spec is not None:
         try:
             meta_spec.validate()
-            checks.append(f"VALIDATED_META_MODEL:{meta_spec.validation_id}")
+            checks.append(f"OPTIONAL_VALIDATED_META_MODEL:{meta_spec.validation_id}")
         except Exception as exc:
-            failures.append(f"META_MODEL_INVALID:{exc}")
+            checks.append(f"OPTIONAL_META_MODEL_INVALID:{exc}")
 
     return ReadinessReport(
         ready=not failures,

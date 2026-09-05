@@ -10,30 +10,34 @@ from zoneinfo import ZoneInfo
 from daybagger.config import Settings
 from daybagger.data.universe import NSEEquityUniverse, ObservableEquity, usable_for_execution
 from daybagger.data.upstox import IntradayCandle, UpstoxDataError, UpstoxMarketData
+from daybagger.decision.baseline import (
+    BASELINE_MODEL_ID,
+    BaselineDecision,
+    RelativeStrengthBaselineDecider,
+)
 from daybagger.decision.risk import (
     AdaptiveCapitalAllocator,
     AllocationDecision,
     CapitalState,
     ExecutionSizer,
 )
-from daybagger.domain import DecisionStatus, Direction, ExecutionRequest, Opportunity
+from daybagger.domain import DecisionStatus, Direction, ExecutionRequest
 from daybagger.execution.paper import PaperBroker
 from daybagger.integration.costs import IndiaEquityIntradayCostModel
 from daybagger.intelligence.meta_features import (
+    CrossSectionState,
     build_cross_section_state,
     build_meta_raw_features,
 )
 from daybagger.intelligence.upstox_external import (
     UpstoxExternalIntelligence,
-    lagged_institutional_features,
     load_sector_cache,
     save_sector_cache,
 )
-from daybagger.meta.stack import MetaDecision, MetaIntelligenceSpec, decide_meta
 from daybagger.operations.outcomes import OutcomeLearner
 from daybagger.operations.trace_store import DecisionTraceStore
 from daybagger.decision.learning import ModelLearningStore
-from daybagger.runtime.ledger import LedgerError, PaperLedger, Position
+from daybagger.runtime.ledger import PaperLedger, Position
 from daybagger.runtime.session import SessionGuard, SessionState
 from daybagger.validation.historical import HistoricalCandleClient
 
@@ -42,6 +46,7 @@ INDIA = ZoneInfo("Asia/Kolkata")
 NIFTY_KEY = "NSE_INDEX|Nifty 50"
 BANK_NIFTY_KEY = "NSE_INDEX|Nifty Bank"
 INDIA_VIX_KEY = "NSE_INDEX|India VIX"
+BASELINE_VALIDATION_ID = "baseline-relative-strength-paper-v1"
 
 
 class PaperRuntimeError(RuntimeError):
@@ -51,9 +56,35 @@ class PaperRuntimeError(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class RuntimeCandidate:
     observed: ObservableEquity
-    decision: MetaDecision
+    decision: BaselineDecision
     raw_features: Mapping[str, float]
     volatility_bps: float
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeUniverseStage:
+    observed: tuple[ObservableEquity, ...]
+    deep: tuple[ObservableEquity, ...]
+    sectors: Mapping[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeFeatureStage:
+    as_of: datetime
+    market_prefix: tuple[IntradayCandle, ...]
+    bank_prefix: tuple[IntradayCandle, ...]
+    vix_prefix: tuple[IntradayCandle, ...]
+    stock_prefixes: Mapping[str, tuple[IntradayCandle, ...]]
+    cross_section: CrossSectionState
+    observed_by_symbol: Mapping[str, ObservableEquity]
+    stock_candles: Mapping[str, tuple[IntradayCandle, ...]]
+    sectors: Mapping[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeExecutionStage:
+    fills: int
+    no_trade_reasons: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,14 +101,15 @@ class RuntimeCycleResult:
 
 class DaybaggerPaperRuntime:
     """
-    One canonical paper runtime.
+    One canonical staged paper runtime.
 
-    Broad official MIS quote scan -> resource-bounded deep candle scan -> canonical
-    meta features -> validated meta model -> cross-sectional ranking -> sequential
-    portfolio allocation -> exact quantity/cost recheck -> paper execution -> ledger
-    -> rejected/executed outcome learning.
+    Broad official MIS quote scan -> resource-bounded deep candle scan ->
+    deterministic cross-sectional relative-strength baseline -> sequential
+    portfolio allocation -> exact quantity/cost recheck -> paper execution ->
+    ledger -> outcome learning.
 
-    There is no live broker path in this class.
+    Meta validation remains a separate research track until it produces proven
+    out-of-sample edge.
     """
 
     def __init__(
@@ -86,21 +118,22 @@ class DaybaggerPaperRuntime:
         repo_root: Path,
         settings: Settings,
         market_data: UpstoxMarketData,
-        meta_spec: MetaIntelligenceSpec,
     ) -> None:
-        meta_spec.validate()
         if settings.app.trading_mode != "paper":
             raise PaperRuntimeError("DaybaggerPaperRuntime is paper-only")
         self.repo_root = repo_root.resolve()
         self.settings = settings
         self.market_data = market_data
-        self.meta_spec = meta_spec
         self.guard = SessionGuard(timezone=settings.app.timezone)
         self.universe = NSEEquityUniverse()
         self.external = UpstoxExternalIntelligence(market_data)
         self.historical = HistoricalCandleClient(market_data)
         self.cost_model = IndiaEquityIntradayCostModel()
         self.sizer = ExecutionSizer(self.cost_model)
+        self.decider = RelativeStrengthBaselineDecider(
+            horizon_minutes=15,
+            paper_slippage_bps_per_side=settings.execution.paper_slippage_bps,
+        )
         self.broker = PaperBroker(
             max_quote_age_seconds=settings.execution.max_quote_age_seconds,
             slippage_bps=settings.execution.paper_slippage_bps,
@@ -126,15 +159,57 @@ class DaybaggerPaperRuntime:
         exits = self._manage_open_positions(current)
         if self.guard.state(current) != SessionState.MARKET:
             return RuntimeCycleResult(current, 0, 0, 0, 0, 0, exits, ("ENTRY_WINDOW_CLOSED",))
+
         mandatory_exit = current.replace(
             hour=self.guard.mandatory_exit.hour,
             minute=self.guard.mandatory_exit.minute,
             second=0,
             microsecond=0,
         )
-        if current + timedelta(minutes=self.meta_spec.horizon_minutes) > mandatory_exit:
-            return RuntimeCycleResult(current, 0, 0, 0, 0, 0, exits, ("MODEL_HORIZON_EXCEEDS_MANDATORY_EXIT",))
+        if current + timedelta(minutes=self.decider.horizon_minutes) > mandatory_exit:
+            return RuntimeCycleResult(
+                current,
+                0,
+                0,
+                0,
+                0,
+                0,
+                exits,
+                ("BASELINE_HORIZON_EXCEEDS_MANDATORY_EXIT",),
+            )
 
+        try:
+            universe = self._scan_universe()
+        except PaperRuntimeError as exc:
+            return RuntimeCycleResult(current, 0, 0, 0, 0, 0, exits, (str(exc),))
+        try:
+            features = self._build_feature_stage(universe)
+        except PaperRuntimeError as exc:
+            return RuntimeCycleResult(
+                current,
+                len(universe.observed),
+                len(universe.deep),
+                0,
+                0,
+                0,
+                exits,
+                (str(exc),),
+            )
+        candidates, pre_execution_reasons = self._build_candidates(features)
+        execution = self._execute_candidates(candidates, current)
+        self._learn_matured_traces(current, features.stock_candles)
+        return RuntimeCycleResult(
+            as_of=features.as_of,
+            observed_universe=len(universe.observed),
+            deep_symbols=len(features.stock_prefixes),
+            decisions=len(features.stock_prefixes),
+            qualified=len(candidates),
+            fills=execution.fills,
+            exits=exits,
+            no_trade_reasons=tuple(pre_execution_reasons + list(execution.no_trade_reasons)),
+        )
+
+    def _scan_universe(self) -> RuntimeUniverseStage:
         instruments = self.universe.load_mis_equities()
         observed = self.universe.observe(
             market_data=self.market_data,
@@ -150,76 +225,93 @@ class DaybaggerPaperRuntime:
             if item.instrument.trading_symbol not in open_symbols
         ][: self.settings.runtime.deep_scan_symbols]
         if len(deep) < 6:
-            return RuntimeCycleResult(current, len(observed), len(deep), 0, 0, 0, exits, ("INSUFFICIENT_EXECUTABLE_DEEP_UNIVERSE",))
-
+            raise PaperRuntimeError("INSUFFICIENT_EXECUTABLE_DEEP_UNIVERSE")
         sectors = self._resolve_sectors(deep)
         deep = [item for item in deep if item.instrument.trading_symbol in sectors]
         if len(deep) < 6:
-            return RuntimeCycleResult(current, len(observed), len(deep), 0, 0, 0, exits, ("INSUFFICIENT_SECTOR_MAPPED_UNIVERSE",))
+            raise PaperRuntimeError("INSUFFICIENT_SECTOR_MAPPED_UNIVERSE")
+        return RuntimeUniverseStage(
+            observed=tuple(observed),
+            deep=tuple(deep),
+            sectors=sectors,
+        )
 
+    def _build_feature_stage(self, universe: RuntimeUniverseStage) -> RuntimeFeatureStage:
         market_candles = self.market_data.intraday_candles(NIFTY_KEY)
         bank_candles = self.market_data.intraday_candles(BANK_NIFTY_KEY)
         vix_candles = self.market_data.intraday_candles(INDIA_VIX_KEY)
-        stock_candles: dict[str, list[IntradayCandle]] = {}
-        by_symbol = {item.instrument.trading_symbol: item for item in deep}
-        for item in deep:
+        stock_candles: dict[str, tuple[IntradayCandle, ...]] = {}
+        by_symbol = {item.instrument.trading_symbol: item for item in universe.deep}
+        for item in universe.deep:
             try:
-                stock_candles[item.instrument.trading_symbol] = self.market_data.intraday_candles(
-                    item.instrument.instrument_key
+                stock_candles[item.instrument.trading_symbol] = tuple(
+                    self.market_data.intraday_candles(item.instrument.instrument_key)
                 )
             except UpstoxDataError:
                 continue
 
         as_of = _latest_common_context_timestamp(market_candles, bank_candles, vix_candles)
-        market_prefix = _prefix_at(market_candles, as_of)
-        bank_prefix = _prefix_at(bank_candles, as_of)
-        vix_prefix = _prefix_at(vix_candles, as_of)
+        market_prefix = tuple(_prefix_at(market_candles, as_of))
+        bank_prefix = tuple(_prefix_at(bank_candles, as_of))
+        vix_prefix = tuple(_prefix_at(vix_candles, as_of))
         prefixes = {
-            symbol: prefix
+            symbol: tuple(prefix)
             for symbol, candles in stock_candles.items()
             if (prefix := _prefix_at(candles, as_of)) and len(prefix) >= 30
         }
         if len(prefixes) < 6:
-            return RuntimeCycleResult(as_of, len(observed), len(prefixes), 0, 0, 0, exits, ("INSUFFICIENT_ALIGNED_MINUTE_DATA",))
+            raise PaperRuntimeError("INSUFFICIENT_ALIGNED_MINUTE_DATA")
 
         cross = build_cross_section_state(
             session_date=as_of.astimezone(INDIA).date(),
             as_of=as_of,
             prefixes_by_symbol=prefixes,
-            sector_by_symbol=sectors,
+            sector_by_symbol=universe.sectors,
         )
-        external_numeric = self._validated_external_features(as_of.date())
-        conservative_statutory_bps = self.cost_model.conservative_linear_round_trip_bps()
+        return RuntimeFeatureStage(
+            as_of=as_of,
+            market_prefix=market_prefix,
+            bank_prefix=bank_prefix,
+            vix_prefix=vix_prefix,
+            stock_prefixes=prefixes,
+            cross_section=cross,
+            observed_by_symbol=by_symbol,
+            stock_candles=stock_candles,
+            sectors=universe.sectors,
+        )
 
+    def _build_candidates(
+        self,
+        features: RuntimeFeatureStage,
+    ) -> tuple[list[RuntimeCandidate], list[str]]:
         candidates: list[RuntimeCandidate] = []
         no_trade: list[str] = []
-        validation_ids = _validation_ids(self.meta_spec)
-        for symbol, prefix in prefixes.items():
-            item = by_symbol[symbol]
+        conservative_statutory_bps = self.cost_model.conservative_linear_round_trip_bps()
+
+        for symbol, prefix in features.stock_prefixes.items():
+            item = features.observed_by_symbol[symbol]
             try:
-                prior = self._prior_volume_sessions(item, current.date())
+                prior = self._prior_volume_sessions(item, features.as_of.date())
                 raw = build_meta_raw_features(
                     symbol=symbol,
                     stock_prefix=prefix,
-                    market_prefix=market_prefix,
-                    bank_nifty_prefix=bank_prefix,
-                    india_vix_prefix=vix_prefix,
-                    cross_section=cross,
-                    sector=sectors[symbol],
+                    market_prefix=features.market_prefix,
+                    bank_nifty_prefix=features.bank_prefix,
+                    india_vix_prefix=features.vix_prefix,
+                    cross_section=features.cross_section,
+                    sector=features.sectors[symbol],
                     prior_stock_sessions=prior,
-                    external_numeric=external_numeric,
+                    external_numeric=None,
                 )
                 spread = item.spread_bps
                 if spread is None or spread < 0:
                     raise PaperRuntimeError(f"{symbol}: live spread unavailable")
-                decision = decide_meta(
-                    spec=self.meta_spec,
+                decision = self.decider.decide(
                     symbol=symbol,
-                    as_of=as_of,
+                    as_of=features.as_of,
                     raw_features=raw,
                     statutory_cost_bps=conservative_statutory_bps,
                     live_spread_bps=spread,
-                    paper_slippage_bps_per_side=self.settings.execution.paper_slippage_bps,
                 )
             except Exception as exc:
                 no_trade.append(f"{symbol}:INSUFFICIENT_EVIDENCE:{type(exc).__name__}")
@@ -229,65 +321,47 @@ class DaybaggerPaperRuntime:
                 self.trace_store.record_decision(
                     symbol=symbol,
                     instrument_key=item.instrument.instrument_key,
-                    as_of=as_of,
+                    as_of=features.as_of,
                     opportunity=decision.opportunity,
                     allocation_approved=False,
                     estimated_cost_bps=decision.estimated_total_cost_bps,
                     opinions=decision.opinions,
-                    validation_ids=validation_ids,
+                    validation_ids={BASELINE_MODEL_ID: BASELINE_VALIDATION_ID},
                     reference_price=item.quote.last_price,
-                    features=decision.meta_features,
+                    features=decision.features_used,
                 )
-            else:
-                vetoed = self.learning_store.vetoed_model_ids()
-                applied_vetoes = sorted(
-                    op.model_id for op in decision.opinions if op.model_id in vetoed
+                no_trade.append(f"{symbol}:{decision.opportunity.reason}")
+                continue
+
+            candidates.append(
+                RuntimeCandidate(
+                    observed=item,
+                    decision=decision,
+                    raw_features=raw,
+                    volatility_bps=float(raw["stock_session_range_bps"]),
                 )
-                if applied_vetoes:
-                    veto = Opportunity.create(
-                        symbol=symbol,
-                        direction=decision.opportunity.direction,
-                        as_of=as_of,
-                        expected_net_return_bps=decision.opportunity.expected_net_return_bps,
-                        confidence=decision.opportunity.confidence,
-                        status=DecisionStatus.REJECTED,
-                        reason="LEARNED_MODEL_VETO:" + ",".join(applied_vetoes),
-                        opinion_ids=[op.opinion_id for op in decision.opinions],
-                    )
-                    self.trace_store.record_decision(
-                        symbol=symbol,
-                        instrument_key=item.instrument.instrument_key,
-                        as_of=as_of,
-                        opportunity=veto,
-                        allocation_approved=False,
-                        estimated_cost_bps=decision.estimated_total_cost_bps,
-                        opinions=decision.opinions,
-                        validation_ids=validation_ids,
-                        reference_price=item.quote.last_price,
-                        features=decision.meta_features,
-                    )
-                    no_trade.append(f"{symbol}:LEARNED_MODEL_VETO")
-                    continue
-                candidates.append(
-                    RuntimeCandidate(
-                        observed=item,
-                        decision=decision,
-                        raw_features=raw,
-                        volatility_bps=float(raw["stock_session_range_bps"]),
-                    )
-                )
+            )
 
         candidates.sort(
             key=lambda item: (
                 item.decision.opportunity.expected_net_return_bps,
                 item.decision.opportunity.confidence,
+                item.decision.residual_strength_bps,
             ),
             reverse=True,
         )
-        qualified = len(candidates)
+        return candidates, no_trade
+
+    def _execute_candidates(
+        self,
+        candidates: Sequence[RuntimeCandidate],
+        current: datetime,
+    ) -> RuntimeExecutionStage:
         capital = self._capital_state(current.date())
         allocator = self._allocator(capital)
+        no_trade: list[str] = []
         fills = 0
+        validation_ids = {BASELINE_MODEL_ID: BASELINE_VALIDATION_ID}
 
         for candidate in candidates:
             op = candidate.decision.opportunity
@@ -306,60 +380,48 @@ class DaybaggerPaperRuntime:
                 fresh_snapshot = self.market_data.full_quotes([instrument_key])[instrument_key]
                 fresh_quote = fresh_snapshot.to_executable_quote()
                 fresh_spread = _spread_bps(fresh_quote)
-                preliminary_size = self.sizer.size(
-                    opportunity=op,
-                    allocation=allocation,
-                    quote=fresh_quote,
-                    estimated_volatility_bps=candidate.volatility_bps,
-                    slippage_bps=self.settings.execution.paper_slippage_bps,
-                )
-                if not preliminary_size.approved:
-                    self._trace_candidate(candidate, AllocationDecision(False, preliminary_size.reason, Decimal("0"), Decimal("0"), 0.0), validation_ids)
-                    no_trade.append(f"{op.symbol}:{preliminary_size.reason}")
-                    continue
-
-                quantity = preliminary_size.quantity
-                buy_turnover = fresh_quote.ask * Decimal(quantity)
-                sell_turnover = fresh_quote.bid * Decimal(quantity)
-                exact_costs = self.cost_model.estimate_round_trip(
-                    buy_turnover=buy_turnover,
-                    sell_turnover=sell_turnover,
-                )
-                exact_statutory_bps = exact_costs.total_bps(buy_turnover, sell_turnover)
-                confirmed = decide_meta(
-                    spec=self.meta_spec,
+                confirmed = self.decider.decide(
                     symbol=op.symbol,
-                    as_of=as_of,
+                    as_of=candidate.decision.opportunity.as_of,
                     raw_features=candidate.raw_features,
-                    statutory_cost_bps=exact_statutory_bps,
+                    statutory_cost_bps=self.cost_model.conservative_linear_round_trip_bps(),
                     live_spread_bps=fresh_spread,
-                    paper_slippage_bps_per_side=self.settings.execution.paper_slippage_bps,
                 )
                 if confirmed.opportunity.status != DecisionStatus.QUALIFIED:
                     self.trace_store.record_decision(
                         symbol=op.symbol,
                         instrument_key=instrument_key,
-                        as_of=as_of,
+                        as_of=candidate.decision.opportunity.as_of,
                         opportunity=confirmed.opportunity,
                         allocation_approved=False,
                         estimated_cost_bps=confirmed.estimated_total_cost_bps,
                         opinions=confirmed.opinions,
                         validation_ids=validation_ids,
                         reference_price=fresh_snapshot.last_price,
-                        features=confirmed.meta_features,
+                        features=confirmed.features_used,
                     )
-                    no_trade.append(f"{op.symbol}:FRESH_COST_RECHECK_REJECTED")
+                    no_trade.append(f"{op.symbol}:FRESH_BASELINE_RECHECK_REJECTED")
                     continue
 
-                final_size = self.sizer.size(
+                sized = self.sizer.size(
                     opportunity=confirmed.opportunity,
                     allocation=allocation,
                     quote=fresh_quote,
                     estimated_volatility_bps=candidate.volatility_bps,
                     slippage_bps=self.settings.execution.paper_slippage_bps,
                 )
-                if not final_size.approved:
-                    no_trade.append(f"{op.symbol}:{final_size.reason}")
+                if not sized.approved:
+                    self._trace_candidate(
+                        RuntimeCandidate(
+                            observed=candidate.observed,
+                            decision=confirmed,
+                            raw_features=candidate.raw_features,
+                            volatility_bps=candidate.volatility_bps,
+                        ),
+                        AllocationDecision(False, sized.reason, Decimal("0"), Decimal("0"), 0.0),
+                        validation_ids,
+                    )
+                    no_trade.append(f"{op.symbol}:{sized.reason}")
                     continue
 
                 execution_now = datetime.now(INDIA)
@@ -367,7 +429,7 @@ class DaybaggerPaperRuntime:
                     opportunity_id=confirmed.opportunity.opportunity_id,
                     symbol=op.symbol,
                     direction=confirmed.opportunity.direction,
-                    quantity=final_size.quantity,
+                    quantity=sized.quantity,
                     created_at=execution_now,
                 )
                 execution = self.broker.execute(
@@ -377,11 +439,8 @@ class DaybaggerPaperRuntime:
                 )
                 if execution.filled_price is None:
                     raise PaperRuntimeError(f"{op.symbol}: paper broker returned no fill")
-                actual_notional = execution.filled_price * Decimal(final_size.quantity)
-                total_risk = (
-                    final_size.estimated_adverse_loss_inr
-                    + final_size.estimated_round_trip_cost_inr
-                )
+                actual_notional = execution.filled_price * Decimal(sized.quantity)
+                total_risk = sized.estimated_adverse_loss_inr + sized.estimated_round_trip_cost_inr
                 if actual_notional > capital.available_cash_inr:
                     raise PaperRuntimeError(f"{op.symbol}: actual paper fill exceeds available cash")
                 stop = _stop_price(
@@ -392,46 +451,36 @@ class DaybaggerPaperRuntime:
                 self.ledger.open_fill(
                     symbol=op.symbol,
                     direction=confirmed.opportunity.direction,
-                    quantity=final_size.quantity,
+                    quantity=sized.quantity,
                     filled_price=execution.filled_price,
                     now=execution.executed_at,
                     instrument_key=instrument_key,
                     opportunity_id=str(confirmed.opportunity.opportunity_id),
-                    validation_id=self.meta_spec.validation_id,
+                    validation_id=BASELINE_VALIDATION_ID,
                     reserved_capital_inr=actual_notional,
                     max_loss_inr=total_risk,
                     stop_price=stop,
-                    horizon_minutes=self.meta_spec.horizon_minutes,
+                    horizon_minutes=self.decider.horizon_minutes,
                 )
                 capital = capital.reserve(capital_inr=actual_notional, risk_inr=total_risk)
                 fills += 1
                 self.trace_store.record_decision(
                     symbol=op.symbol,
                     instrument_key=instrument_key,
-                    as_of=as_of,
+                    as_of=candidate.decision.opportunity.as_of,
                     opportunity=confirmed.opportunity,
                     allocation_approved=True,
                     estimated_cost_bps=confirmed.estimated_total_cost_bps,
                     opinions=confirmed.opinions,
                     validation_ids=validation_ids,
                     reference_price=fresh_snapshot.last_price,
-                    features=confirmed.meta_features,
+                    features=confirmed.features_used,
                 )
             except Exception as exc:
                 no_trade.append(f"{op.symbol}:EXECUTION_FAIL_CLOSED:{type(exc).__name__}")
                 continue
 
-        self._learn_matured_traces(current, stock_candles)
-        return RuntimeCycleResult(
-            as_of=as_of,
-            observed_universe=len(observed),
-            deep_symbols=len(prefixes),
-            decisions=len(prefixes),
-            qualified=qualified,
-            fills=fills,
-            exits=exits,
-            no_trade_reasons=tuple(no_trade),
-        )
+        return RuntimeExecutionStage(fills=fills, no_trade_reasons=tuple(no_trade))
 
     def _path(self, configured: str) -> Path:
         path = Path(configured)
@@ -489,23 +538,6 @@ class DaybaggerPaperRuntime:
         self._prior_sessions[key] = sessions
         return sessions
 
-    def _validated_external_features(self, session_date: date) -> Mapping[str, float] | None:
-        names = self.meta_spec.meta_feature_names
-        needs_institutional = any(name.startswith(("fii_", "dii_")) for name in names)
-        if not needs_institutional:
-            return None
-        history = self.external.institutional_history(
-            from_date=session_date - timedelta(days=45),
-            to_date=session_date,
-        )
-        values = lagged_institutional_features(history, session_date)
-        if values is None:
-            raise PaperRuntimeError("VALIDATED_INSTITUTIONAL_FEATURES_UNAVAILABLE")
-        missing = [name for name in names if name.startswith(("fii_", "dii_")) and name not in values]
-        if missing:
-            raise PaperRuntimeError(f"VALIDATED_EXTERNAL_FEATURES_MISSING:{missing}")
-        return values
-
     def _capital_state(self, session_date: date) -> CapitalState:
         starting = Decimal(str(self.settings.capital.starting_capital_inr))
         equity, peak = self.ledger.equity_and_peak(starting)
@@ -556,7 +588,7 @@ class DaybaggerPaperRuntime:
             opinions=candidate.decision.opinions,
             validation_ids=validation_ids,
             reference_price=item.quote.last_price,
-            features=candidate.decision.meta_features,
+            features=candidate.decision.features_used,
         )
 
     def _manage_open_positions(self, now: datetime) -> int:
@@ -634,6 +666,7 @@ class DaybaggerPaperRuntime:
                 self.trace_store.mark_outcome_recorded(item.trace_id)
 
 
+
 def _latest_common_context_timestamp(*series: Sequence[IntradayCandle]) -> datetime:
     if not series or any(not values for values in series):
         raise PaperRuntimeError("CONTEXT_CANDLES_MISSING")
@@ -645,11 +678,13 @@ def _latest_common_context_timestamp(*series: Sequence[IntradayCandle]) -> datet
     return max(common)
 
 
+
 def _prefix_at(candles: Sequence[IntradayCandle], as_of: datetime) -> list[IntradayCandle]:
     ordered = sorted((c for c in candles if c.timestamp <= as_of), key=lambda c: c.timestamp)
     if not ordered or ordered[-1].timestamp != as_of:
         return []
     return ordered
+
 
 
 def _spread_bps(quote) -> float:
@@ -659,11 +694,13 @@ def _spread_bps(quote) -> float:
     return float((quote.ask - quote.bid) / mid * Decimal("10000"))
 
 
+
 def _stop_price(entry: Decimal, direction: Direction, volatility_bps: float) -> Decimal:
     distance = entry * Decimal(str(volatility_bps)) / Decimal("10000")
     if distance <= 0:
         raise PaperRuntimeError("NON_POSITIVE_STOP_DISTANCE")
     return entry - distance if direction == Direction.LONG else entry + distance
+
 
 
 def _exit_reason(
@@ -682,10 +719,3 @@ def _exit_reason(
         if pos.direction == Direction.SHORT and quote.ask >= pos.stop_price:
             return "RANGE_STOP"
     return None
-
-
-def _validation_ids(spec: MetaIntelligenceSpec) -> dict[str, str]:
-    result = {base.model_id: base.validation_id for base in spec.base_specs}
-    result[spec.long_model.model_id] = spec.validation_id
-    result[spec.short_model.model_id] = spec.validation_id
-    return result

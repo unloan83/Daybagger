@@ -1,0 +1,13 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Load OCI-local credentials and notifier settings from /etc/daybagger.env.
+# Expected local-only values include:
+#   UPSTOX_ACCESS_TOKEN=...
+#   TELEGRAM_BOT_TOKEN=...
+#   TELEGRAM_CHAT_ID=...
+# Install with: crontab /opt/daybagger/deploy/daybagger.cron
+
+5 9 * * 1-5 cd /opt/daybagger && set -a && . /etc/daybagger.env && set +a && /opt/daybagger/.venv/bin/python scripts/check_daybagger_ready.py --notify-telegram-on-fail >> /opt/daybagger/logs/cron-readiness.log 2>&1
+*/5 9-15 * * 1-5 cd /opt/daybagger && set -a && . /etc/daybagger.env && set +a && /usr/bin/timeout 180s /opt/daybagger/.venv/bin/python scripts/run_paper_runtime.py --once --notify-telegram >> /opt/daybagger/logs/cron-paper.log 2>&1
+35 15 * * 1-5 cd /opt/daybagger && set -a && . /etc/daybagger.env && set +a && /opt/daybagger/.venv/bin/python scripts/review_baseline_runtime.py --notify-telegram >> /opt/daybagger/logs/cron-review.log 2>&1

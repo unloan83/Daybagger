@@ -19,6 +19,8 @@ Daybagger is a **paper-only Indian-equity intraday trading system** built around
 - Runtime stage summaries append to `logs/baseline_runtime_summary.jsonl`
 - Runtime evidence review: `scripts/review_baseline_runtime.py`
 - Historical baseline replay: `scripts/replay_baseline_recent.py --from-date YYYY-MM-DD --to-date YYYY-MM-DD`
+- Optional Telegram notifications use `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`
+- Example OCI cron schedule: `deploy/daybagger.cron`
 
 ## One authoritative paper decision engine
 
@@ -50,5 +52,12 @@ pytest
 1. Run `python scripts/run_paper_runtime.py` in paper mode to generate staged JSONL summaries and decision traces.
 2. Review actual daily bottlenecks with `python scripts/review_baseline_runtime.py`.
 3. Replay the same baseline on recent sessions with `python scripts/replay_baseline_recent.py --from-date YYYY-MM-DD --to-date YYYY-MM-DD`.
+
+## Automation
+
+- `python scripts/check_daybagger_ready.py --notify-telegram-on-fail` sends readiness failures to Telegram.
+- `python scripts/run_paper_runtime.py --once --notify-telegram` runs one bounded paper cycle and sends the cycle summary.
+- `python scripts/review_baseline_runtime.py --notify-telegram` sends the latest daily review summary.
+- `deploy/daybagger.cron` shows a simple OCI cron schedule that calls only the existing scripts.
 
 `goldenrules.txt` remains the permanent design authority.

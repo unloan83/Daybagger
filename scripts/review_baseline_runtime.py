@@ -11,6 +11,8 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from daybagger.config import load_settings
 from daybagger.operations.baseline_review import PromotionBar, review_baseline_runtime
+from daybagger.runtime.automation import format_review_message, maybe_send_telegram
+from daybagger.runtime.telegram import TelegramNotifier
 
 
 def main() -> int:
@@ -29,6 +31,11 @@ def main() -> int:
     parser.add_argument("--min-avg-predicted-edge-bps", type=float, default=0.0)
     parser.add_argument("--min-realized-net-pnl", type=str, default="0")
     parser.add_argument("--max-loss-days", type=int, default=1)
+    parser.add_argument(
+        "--notify-telegram",
+        action="store_true",
+        help="send the review summary to Telegram",
+    )
     args = parser.parse_args()
 
     settings = load_settings(REPO_ROOT / "config" / "default.toml")
@@ -52,6 +59,11 @@ def main() -> int:
 
     if args.json:
         print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+        if args.notify_telegram:
+            maybe_send_telegram(
+                format_review_message(report),
+                notifier=TelegramNotifier(),
+            )
         return 0
 
     for day in report.days:
@@ -69,6 +81,11 @@ def main() -> int:
     print("TOP_REJECT_REASONS")
     for reason, count in list(report.reject_reasons.items())[:10]:
         print(f"  {count:>4} {reason}")
+    if args.notify_telegram:
+        maybe_send_telegram(
+            format_review_message(report),
+            notifier=TelegramNotifier(),
+        )
     return 0
 
 

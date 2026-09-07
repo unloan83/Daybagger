@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -43,3 +45,29 @@ class TelegramNotifier:
 
         if not payload.get("ok"):
             raise TelegramError(f"Telegram rejected message: {payload!r}")
+
+
+def load_telegram_notifier(repo_root: Path | None = None) -> TelegramNotifier:
+    from daybagger.runtime.local_env import read_env_value
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    if repo_root:
+        if not token:
+            token = read_env_value(repo_root / ".env.local", "TELEGRAM_BOT_TOKEN").strip()
+        if not chat_id:
+            chat_id = read_env_value(repo_root / ".env.local", "TELEGRAM_CHAT_ID").strip()
+    return TelegramNotifier(token=token, chat_id=chat_id)
+
+
+def send_telegram_quietly(message: str, repo_root: Path | None = None) -> bool:
+    try:
+        notifier = load_telegram_notifier(repo_root)
+        if notifier.configured:
+            notifier.send(message)
+            return True
+        else:
+            return False
+    except Exception as exc:
+        print(f"Telegram notification warning: {exc}", file=sys.stderr if "sys" in globals() else None)
+        return False
+

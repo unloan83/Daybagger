@@ -3,6 +3,12 @@
 There is exactly **one production decision path**.
 
 1. **Official observations** — NSE/Upstox data only; missing/invalid evidence fails closed.
+2. **Canonical paper baseline** — the runtime ranks timestamp-aligned cross-sectional
+	residual strength versus NIFTY and sector, gated by market regime, relative volume,
+	executable spread and the existing cost model. It does not require a trained meta
+	artifact.
+3. **Research-only meta path** — `scripts/validate_meta_intelligence.py` may produce
+	optional validated artifacts, but it is not a runtime prerequisite.
 2. **Broad intelligence** — market, sector, stock, cross-section, institutional/flow, volatility and executable microstructure; additional sources are evidence-gated.
 3. **Specialist evidence** — validated probabilistic base models, never independent production engines.
 4. **Meta intelligence** — nonlinear direct-return forest combines specialist + context evidence and predicts side-specific future gross return in bps.

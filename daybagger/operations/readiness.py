@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from daybagger.bootstrap import verify_golden_rules
-from daybagger.meta.stack import MetaIntelligenceSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,9 +17,9 @@ def run_readiness(
     *,
     repo_root: Path,
     access_token_present: bool,
-    meta_spec: MetaIntelligenceSpec | None = None,
+    meta_spec: object | None = None,
 ) -> ReadinessReport:
-    """Production readiness for the ONE canonical meta-runtime."""
+    """Production readiness for the canonical paper baseline runtime."""
     checks: list[str] = []
     failures: list[str] = []
 
@@ -35,14 +34,13 @@ def run_readiness(
     else:
         failures.append("UPSTOX_TOKEN_MISSING")
 
-    if meta_spec is None:
-        failures.append("NO_APPROVED_VALIDATED_META_MODEL")
-    else:
+    checks.append("BASELINE_RUNTIME:PAPER_ONLY")
+    if meta_spec is not None:
         try:
             meta_spec.validate()
-            checks.append(f"VALIDATED_META_MODEL:{meta_spec.validation_id}")
+            checks.append(f"OPTIONAL_META_MODEL:{meta_spec.validation_id}")
         except Exception as exc:
-            failures.append(f"META_MODEL_INVALID:{exc}")
+            checks.append(f"OPTIONAL_META_MODEL_IGNORED:{type(exc).__name__}")
 
     return ReadinessReport(
         ready=not failures,

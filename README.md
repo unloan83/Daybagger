@@ -7,10 +7,17 @@ Daybagger is a **paper-only Indian-equity meta-intelligence trading system** bui
 ## Current operating state
 
 - Real paper runtime: `scripts/run_paper_runtime.py`
-- Locked meta validation: `scripts/validate_meta_intelligence.py`
-- Runtime model: `config/validated_meta_model.json` **only after genuine OOS approval**
+- Canonical runtime model: deterministic cross-sectional relative-strength baseline
+- Evidence review: `scripts/review_baseline_runtime.py`
+- Historical replay: `scripts/replay_baseline.py`
+- Locked meta validation: `scripts/validate_meta_intelligence.py` (research-only)
+- `config/validated_meta_model.json` is optional research output and is not required
+	by the canonical paper runtime.
 - Live broker execution: **disabled**
 - Missing/invalid evidence: **fail closed / no trade**
+- Every evaluated baseline decision, including rejects, is persisted in
+	`data/decision_traces.sqlite3`; cycle summaries are appended to
+	`logs/baseline_runtime_summary.jsonl`.
 - Broad official NSE MIS quote scan with resource-bounded deep candle analysis
 - ₹30,000 default capital, ₹500 max risk/trade, ₹1,000 hard daily loss limit
 - Actual integer quantity sizing and actual-cost recheck before paper execution
@@ -39,6 +46,13 @@ python scripts/check_foundation.py
 python scripts/check_runtime.py
 python scripts/check_validation.py
 pytest
+
+# During NSE market hours, with UPSTOX_ACCESS_TOKEN available:
+python scripts/run_paper_runtime.py --once
+python scripts/review_baseline_runtime.py --json
+
+# Research replay uses genuine historical candles and a declared spread scenario:
+python scripts/replay_baseline.py --from-date 2026-08-01 --to-date 2026-09-02 --spread-bps 4
 ```
 
 `goldenrules.txt` remains the permanent design authority.

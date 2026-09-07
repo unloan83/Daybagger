@@ -16,7 +16,7 @@ def run_foundation_boot(*, repo_root: Path, config_path: Path | None = None) -> 
     configure_logging(settings.app.log_level)
     log = logging.getLogger("daybagger")
     meta_spec = load_meta_spec(repo_root / "config" / "validated_meta_model.json")
-    strategy_logic_loaded = meta_spec is not None
+    strategy_logic_loaded = True
 
     log.info(
         "golden_rules_verified",
@@ -41,7 +41,7 @@ def run_foundation_boot(*, repo_root: Path, config_path: Path | None = None) -> 
     store.record_event(
         "DAYBAGGER_BOOT",
         {
-            "status": "READY" if strategy_logic_loaded else "AWAITING_VALIDATED_META_MODEL",
+            "status": "READY_BASELINE_PAPER",
             "trading_mode": settings.app.trading_mode,
             "strategy_logic_loaded": strategy_logic_loaded,
             "meta_validation_id": meta_spec.validation_id if meta_spec else None,

@@ -180,6 +180,19 @@ class UpstoxMarketData:
             )
         return snapshots
 
+    def full_quotes_raw(self, instrument_keys: Sequence[str]) -> dict[str, dict[str, Any]]:
+        keys = _clean_keys(instrument_keys)
+        if not keys:
+            return {}
+        if len(keys) > 500:
+            keys = keys[:500]
+        query = urlencode({"instrument_key": ",".join(keys)})
+        payload = self.request_json(f"{self.QUOTE_URL}?{query}")
+        if payload.get("status") != "success":
+            return {}
+        raw_data = payload.get("data")
+        return raw_data if isinstance(raw_data, dict) else {}
+
     def intraday_candles(
         self,
         instrument_key: str,

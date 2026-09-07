@@ -1,0 +1,302 @@
+[
+  {
+    "date": "2025-09-01",
+    "nifty": {
+      "total_calls": 259929800.0,
+      "total_puts": 296116425.0,
+      "pcr": 1.1392169154902594,
+      "spot_price": 24625.05
+    },
+    "macro": {
+      "total_calls": 3718831345.0,
+      "total_puts": 2502581596.0,
+      "pcr": 0.6729483979865724
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-02",
+    "nifty": {
+      "total_calls": 330794725.0,
+      "total_puts": 309462700.0,
+      "pcr": 0.9355128017836439,
+      "spot_price": 24579.6
+    },
+    "macro": {
+      "total_calls": 3975970752.0,
+      "total_puts": 2623758976.0,
+      "pcr": 0.6599039931770605
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-03",
+    "nifty": {
+      "total_calls": 182573975.0,
+      "total_puts": 220446025.0,
+      "pcr": 1.2074340003825847,
+      "spot_price": 24715.05
+    },
+    "macro": {
+      "total_calls": 4073476186.0,
+      "total_puts": 2715104415.0,
+      "pcr": 0.6665325365915862
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-04",
+    "nifty": {
+      "total_calls": 272185100.0,
+      "total_puts": 229585775.0,
+      "pcr": 0.843491341002869,
+      "spot_price": 24734.3
+    },
+    "macro": {
+      "total_calls": 4318132100.0,
+      "total_puts": 2786149544.0,
+      "pcr": 0.6452210074814525
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-05",
+    "nifty": {
+      "total_calls": 291949500.0,
+      "total_puts": 252531700.0,
+      "pcr": 0.8649841839085184,
+      "spot_price": 24741.0
+    },
+    "macro": {
+      "total_calls": 4505975352.0,
+      "total_puts": 3013146336.0,
+      "pcr": 0.6687001371773149
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-08",
+    "nifty": {
+      "total_calls": 310367250.0,
+      "total_puts": 295518725.0,
+      "pcr": 0.9521582093471525,
+      "spot_price": 24773.15
+    },
+    "macro": {
+      "total_calls": 4854769875.0,
+      "total_puts": 3202093279.0,
+      "pcr": 0.6595767382279886
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-09",
+    "nifty": {
+      "total_calls": 307464425.0,
+      "total_puts": 347660475.0,
+      "pcr": 1.130733986541695,
+      "spot_price": 24868.6
+    },
+    "macro": {
+      "total_calls": 5060442331.0,
+      "total_puts": 3311644214.0,
+      "pcr": 0.6544179337274617
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-10",
+    "nifty": {
+      "total_calls": 190270025.0,
+      "total_puts": 219178450.0,
+      "pcr": 1.1519336795167814,
+      "spot_price": 24973.1
+    },
+    "macro": {
+      "total_calls": 5097808246.0,
+      "total_puts": 3278469883.0,
+      "pcr": 0.6431136136931895
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-11",
+    "nifty": {
+      "total_calls": 226301775.0,
+      "total_puts": 265861175.0,
+      "pcr": 1.174808173731735,
+      "spot_price": 25005.5
+    },
+    "macro": {
+      "total_calls": 5209048474.0,
+      "total_puts": 3418523070.0,
+      "pcr": 0.6562663194752217
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-12",
+    "nifty": {
+      "total_calls": 240811100.0,
+      "total_puts": 310200825.0,
+      "pcr": 1.2881500271374533,
+      "spot_price": 25114.0
+    },
+    "macro": {
+      "total_calls": 5393108088.0,
+      "total_puts": 3615030932.0,
+      "pcr": 0.6703056703135003
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-15",
+    "nifty": {
+      "total_calls": 291373200.0,
+      "total_puts": 315522525.0,
+      "pcr": 1.0828810782872276,
+      "spot_price": 25069.2
+    },
+    "macro": {
+      "total_calls": 5654296143.0,
+      "total_puts": 3893153204.0,
+      "pcr": 0.6885301203792997
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-16",
+    "nifty": {
+      "total_calls": 271372600.0,
+      "total_puts": 358327075.0,
+      "pcr": 1.320424667044499,
+      "spot_price": 25239.1
+    },
+    "macro": {
+      "total_calls": 5756390083.0,
+      "total_puts": 4070757343.0,
+      "pcr": 0.7071719053616471
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-17",
+    "nifty": {
+      "total_calls": 174242075.0,
+      "total_puts": 210812125.0,
+      "pcr": 1.2098807076304618,
+      "spot_price": 25330.25
+    },
+    "macro": {
+      "total_calls": 5965111396.0,
+      "total_puts": 4205032175.0,
+      "pcr": 0.7049377448038524
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-18",
+    "nifty": {
+      "total_calls": 217587975.0,
+      "total_puts": 251673000.0,
+      "pcr": 1.1566493966406002,
+      "spot_price": 25423.6
+    },
+    "macro": {
+      "total_calls": 6362331638.0,
+      "total_puts": 4408227880.0,
+      "pcr": 0.6928635806519711
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-19",
+    "nifty": {
+      "total_calls": 273662600.0,
+      "total_puts": 257159525.0,
+      "pcr": 0.9396955411517687,
+      "spot_price": 25327.05
+    },
+    "macro": {
+      "total_calls": 6479942349.0,
+      "total_puts": 4768472448.0,
+      "pcr": 0.7358819247421055
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-22",
+    "nifty": {
+      "total_calls": 350769550.0,
+      "total_puts": 253739700.0,
+      "pcr": 0.7233800653448966,
+      "spot_price": 25202.35
+    },
+    "macro": {
+      "total_calls": 6709563344.0,
+      "total_puts": 4834353060.0,
+      "pcr": 0.7205167925455389
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-23",
+    "nifty": {
+      "total_calls": 328324100.0,
+      "total_puts": 281460225.0,
+      "pcr": 0.8572633717719778,
+      "spot_price": 25169.5
+    },
+    "macro": {
+      "total_calls": 6996227387.0,
+      "total_puts": 4920034306.0,
+      "pcr": 0.7032410517620016
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-24",
+    "nifty": {
+      "total_calls": 210340200.0,
+      "total_puts": 183445100.0,
+      "pcr": 0.8721352361555232,
+      "spot_price": 25056.9
+    },
+    "macro": {
+      "total_calls": 7067286432.0,
+      "total_puts": 4873333739.0,
+      "pcr": 0.6895622224866972
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-25",
+    "nifty": {
+      "total_calls": 292193175.0,
+      "total_puts": 199019450.0,
+      "pcr": 0.6811228564801352,
+      "spot_price": 24890.85
+    },
+    "macro": {
+      "total_calls": 7303335962.0,
+      "total_puts": 4914356214.0,
+      "pcr": 0.6728919824543051
+    },
+    "top_underlyings_count": 214
+  },
+  {
+    "date": "2025-09-26",
+    "nifty": {
+      "total_calls": 344336675.0,
+      "total_puts": 216512650.0,
+      "pcr": 0.6287818455585656,
+      "spot_price": 24654.7
+    },
+    "macro": {
+      "total_calls": 7424276695.0,
+      "total_puts": 4756975761.0,
+      "pcr": 0.640732553004613
+    },
+    "top_underlyings_count": 214
+  }
+]

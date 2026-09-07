@@ -49,11 +49,11 @@ class TelegramNotifier:
 
 def load_telegram_notifier(repo_root: Path | None = None) -> TelegramNotifier:
     from daybagger.runtime.local_env import read_env_value
-    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    token = (os.getenv("TELEGRAM_BOT_TOKEN", "") or os.getenv("TELEGRAM_TOKEN", "")).strip()
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
     if repo_root:
         if not token:
-            token = read_env_value(repo_root / ".env.local", "TELEGRAM_BOT_TOKEN").strip()
+            token = (read_env_value(repo_root / ".env.local", "TELEGRAM_BOT_TOKEN") or read_env_value(repo_root / ".env.local", "TELEGRAM_TOKEN")).strip()
         if not chat_id:
             chat_id = read_env_value(repo_root / ".env.local", "TELEGRAM_CHAT_ID").strip()
     return TelegramNotifier(token=token, chat_id=chat_id)

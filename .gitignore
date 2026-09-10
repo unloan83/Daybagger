@@ -1,5 +1,7 @@
+.env
 .env.local
 .env.worker
+.env.*
 .venv/
 __pycache__/
 *.py[cod]
@@ -11,4 +13,3 @@ data/historical_cache/
 logs/*.log
 logs/*.lock
 logs/*.flag
-

@@ -5,8 +5,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 data/*.sqlite3
+data/*.duckdb
 data/sector_cache.json
 data/historical_cache/
 logs/*.log
 logs/*.lock
 logs/*.flag
+

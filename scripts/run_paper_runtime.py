@@ -57,7 +57,7 @@ def main() -> int:
         return 3
 
     try:
-        git_head = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT).decode().strip()
+        git_head = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, stderr=subprocess.DEVNULL).decode().strip()
     except Exception:
         git_head = "unknown"
     source = "manual" if sys.stdin.isatty() else "cron"
@@ -91,6 +91,20 @@ def main() -> int:
             for reason in result.no_trade_reasons[:10]:
                 print("NO_TRADE", reason)
             
+            today_str = now.strftime("%Y-%m-%d")
+            heartbeat_flag = REPO_ROOT / "logs" / f"daily_heartbeat_{today_str}.flag"
+            if args.notify_telegram and not heartbeat_flag.exists():
+                hb_msg = (
+                    f"💓 Daybagger Daily Heartbeat [{today_str}]: Runtime active. "
+                    f"as_of={now.strftime('%H:%M:%S')} observed={result.observed_universe} "
+                    f"qualified={result.qualified} fills={result.fills}"
+                )
+                if send_telegram_quietly(hb_msg, repo_root=REPO_ROOT):
+                    try:
+                        heartbeat_flag.touch()
+                    except Exception:
+                        pass
+
             if args.notify_telegram and (result.fills > 0 or result.exits > 0 or result.qualified > 0):
                 send_telegram_quietly(f"📈 {cycle_msg}", repo_root=REPO_ROOT)
 

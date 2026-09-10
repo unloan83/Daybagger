@@ -13,13 +13,22 @@ from daybagger.errors import InvalidMarketDataError
 
 
 class PaperBroker:
-    def __init__(self, *, max_quote_age_seconds: int, slippage_bps: float = 0.0):
+    def __init__(
+        self,
+        *,
+        max_quote_age_seconds: int,
+        slippage_bps: float = 0.0,
+        clock_skew_tolerance_seconds: float = 5.0,
+    ):
         if max_quote_age_seconds <= 0:
             raise ValueError("max_quote_age_seconds must be > 0")
         if slippage_bps < 0:
             raise ValueError("slippage_bps cannot be negative")
+        if clock_skew_tolerance_seconds < 0:
+            raise ValueError("clock_skew_tolerance_seconds cannot be negative")
         self.max_quote_age_seconds = max_quote_age_seconds
         self.slippage_bps = Decimal(str(slippage_bps))
+        self.clock_skew_tolerance_seconds = float(clock_skew_tolerance_seconds)
 
     def execute(
         self,
@@ -71,8 +80,10 @@ class PaperBroker:
         if now.tzinfo is None:
             raise InvalidMarketDataError("now must be timezone-aware")
         age = (now - quote.as_of).total_seconds()
-        if age < 0:
-            raise InvalidMarketDataError("quote timestamp is in the future")
+        if age < -self.clock_skew_tolerance_seconds:
+            raise InvalidMarketDataError(
+                f"quote timestamp is in the future: age={age:.3f}s < -{self.clock_skew_tolerance_seconds:.1f}s"
+            )
         if age > self.max_quote_age_seconds:
             raise InvalidMarketDataError(
                 f"stale quote: age={age:.3f}s > {self.max_quote_age_seconds}s"

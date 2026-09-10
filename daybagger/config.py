@@ -33,6 +33,7 @@ class StorageConfig:
 class ExecutionConfig:
     max_quote_age_seconds: int
     paper_slippage_bps: float
+    clock_skew_tolerance_seconds: float = 5.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +89,7 @@ def load_settings(path: Path) -> Settings:
             execution=ExecutionConfig(
                 int(e["max_quote_age_seconds"]),
                 float(e["paper_slippage_bps"]),
+                float(e.get("clock_skew_tolerance_seconds", 5.0)),
             ),
             risk=RiskConfig(
                 float(r.get("max_risk_per_trade_inr", 500.0)),

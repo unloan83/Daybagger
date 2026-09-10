@@ -12,7 +12,7 @@ It will:
 
 * Scan the liquid Indian equity market broadly.
 * Combine market, sector, stock, institutional, F&O/OI, volatility, global, news/event, historical and microstructure intelligence.
-* Use multiple proven specialist strategies/models instead of relying on one strategy.
+* Use proven cross-sectional relative strength baseline models and specialist strategy modules instead of relying on fixed indicator rules.
 * Detect the current market regime and determine which strategies/signals are most reliable in that regime.
 * Predict and rank opportunities by **probability, expected net return, risk and execution quality**.
 * Allocate capital only to the best opportunities.
@@ -24,7 +24,7 @@ It will:
    Everything must be designed and validated specifically for NSE/Indian market behaviour.
 
 2. **Equity Only for V1**
-   Daybagger trades cash equities. Other markets, indices, F&O/OI, VIX, global markets, etc. may be used freely as intelligence inputs.
+   Daybagger trades cash equities in paper mode. Other markets, indices, F&O/OI, VIX, global markets, etc. are used freely as intelligence inputs.
 
 3. **Broad Intelligence, Evidence-Gated**
    Use any lawful information that can improve prediction or execution: price, volume, breadth, sectors, NIFTY, VIX, institutional activity, F&O/OI, global cues, GIFT NIFTY, news, events, corporate actions, order book, historical analogues, expert strategies and quantitative models. A source may influence trading only when its timestamp/history is sufficient for leakage-safe validation; otherwise collect it for forward learning until it earns weight.
@@ -39,7 +39,7 @@ It will:
    Derived features/indicators are allowed only as measurable evidence; names such as RSI/MACD/ADX/RVOL neither validate nor invalidate a signal. No arbitrary stacking, thresholds or confidence scores. Every meaningful metric, formula, filter, interaction or strategy must prove incremental usefulness on Indian historical and out-of-sample data before it can influence production.
 
 7. **Same Logic Everywhere**
-   Live trading, replay, backtest and learning must use the same strategy implementation. No separate “backtest logic” and “live logic.”
+   Paper trading, replay, backtest and learning must use the same decision implementation. No separate “backtest logic” and “live paper logic.”
 
 8. **No Fake Data or Fake Evidence**
    Missing or invalid information means `NO TRADE / INSUFFICIENT EVIDENCE`. Never manufacture candles, bid/ask, win rates, confirmations or backtest results.
@@ -54,7 +54,7 @@ It will:
     Capital allocation depends on expected edge, confidence, volatility, liquidity, drawdown and current portfolio state—not crude fixed trade-count rules.
 
 12. **Execution Quality Matters**
-    A good prediction is worthless if spread, slippage, charges or liquidity destroy the edge. Rank opportunities by expected **net** return after realistic trading costs.
+    A good prediction is worthless if spread, slippage, charges or liquidity destroy the edge. Rank opportunities by expected **net** return after realistic statutory and slippage trading costs.
 
 13. **Self-Learning Is Mandatory**
     Learn from both executed and rejected opportunities. Measure what subsequently happened, identify missed opportunities and bad filters, propose improvements, validate them, then promote only proven changes.
@@ -72,17 +72,15 @@ It will:
 
 ALL AVAILABLE INTELLIGENCE
 → MARKET REGIME
-→ MULTIPLE SPECIALIST MODELS
+→ CROSS-SECTIONAL RELATIVE STRENGTH BASELINE & SPECIALISTS
 → PREDICTIVE META-ENGINE
-→ EXPECTED-VALUE RANKING
+→ EXPECTED NET-VALUE RANKING
 → BEST EQUITY OPPORTUNITIES
 → CAPITAL & RISK ALLOCATION
-→ EXECUTION
+→ PAPER EXECUTION
 → P&L / OUTCOME
 → CONTINUOUS EVIDENCE-BASED LEARNING
 
 ## Ultimate Principle
 
 **Daybagger must become smarter from evidence, not more complicated from patches.**
-
-This is the version I would use as the permanent reference whenever we design or review Daybagger.

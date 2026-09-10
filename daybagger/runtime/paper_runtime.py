@@ -112,6 +112,7 @@ class DaybaggerPaperRuntime:
         self.broker = PaperBroker(
             max_quote_age_seconds=settings.execution.max_quote_age_seconds,
             slippage_bps=settings.execution.paper_slippage_bps,
+            clock_skew_tolerance_seconds=settings.execution.clock_skew_tolerance_seconds,
         )
         self.ledger = PaperLedger(self._path(settings.storage.paper_ledger_path))
         self.trace_store = DecisionTraceStore(self._path(settings.storage.decision_trace_path))
@@ -632,29 +633,32 @@ class DaybaggerPaperRuntime:
             reason = _exit_reason(pos, quote, now, mandatory_exit)
             if reason is None:
                 continue
-            fill = self.broker.exit_fill_price(
-                position_direction=pos.direction,
-                quote=quote,
-                now=now,
-            )
-            entry_turnover = pos.entry_price * Decimal(pos.quantity)
-            exit_turnover = fill * Decimal(pos.quantity)
-            if pos.direction == Direction.LONG:
-                buy_turnover, sell_turnover = entry_turnover, exit_turnover
-            else:
-                buy_turnover, sell_turnover = exit_turnover, entry_turnover
-            costs = self.cost_model.estimate_round_trip(
-                buy_turnover=buy_turnover,
-                sell_turnover=sell_turnover,
-            )
-            self.ledger.close_fill(
-                position_id=pos.position_id,
-                filled_price=fill,
-                now=now,
-                costs_inr=costs.total,
-                exit_reason=reason,
-            )
-            exits += 1
+            try:
+                fill = self.broker.exit_fill_price(
+                    position_direction=pos.direction,
+                    quote=quote,
+                    now=now,
+                )
+                entry_turnover = pos.entry_price * Decimal(pos.quantity)
+                exit_turnover = fill * Decimal(pos.quantity)
+                if pos.direction == Direction.LONG:
+                    buy_turnover, sell_turnover = entry_turnover, exit_turnover
+                else:
+                    buy_turnover, sell_turnover = exit_turnover, entry_turnover
+                costs = self.cost_model.estimate_round_trip(
+                    buy_turnover=buy_turnover,
+                    sell_turnover=sell_turnover,
+                )
+                self.ledger.close_fill(
+                    position_id=pos.position_id,
+                    filled_price=fill,
+                    now=now,
+                    costs_inr=costs.total,
+                    exit_reason=reason,
+                )
+                exits += 1
+            except Exception as exc:
+                continue
         return exits
 
     def _learn_matured_traces(

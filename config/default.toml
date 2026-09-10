@@ -17,6 +17,7 @@ learning_db_path = "data/learning.sqlite3"
 [execution]
 max_quote_age_seconds = 15
 paper_slippage_bps = 2.0
+clock_skew_tolerance_seconds = 5.0
 
 [risk]
 max_risk_per_trade_inr = 500.0

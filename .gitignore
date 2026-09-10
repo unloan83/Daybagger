@@ -7,3 +7,6 @@ __pycache__/
 data/*.sqlite3
 data/sector_cache.json
 data/historical_cache/
+logs/*.log
+logs/*.lock
+logs/*.flag

@@ -1,53 +1,49 @@
 # Daybagger
 
-Daybagger is a **paper-only Indian-equity meta-intelligence trading system** built around one canonical production path:
+Daybagger is a **paper-only Indian-equity intraday trading system** built around one canonical production path:
 
-**official market data → market/sector/stock/flow intelligence → validated specialists → direct future-return meta-model → cross-sectional net-edge ranking → portfolio-aware risk/quantity sizing → paper execution → ledger → accepted/rejected outcome learning**
+**official Upstox market data → market/sector/stock cross-sectional intelligence → deterministic relative-strength baseline decision engine → net-edge cost gate → portfolio-aware risk/quantity sizing → paper execution → ledger → future-candle outcome learning**
 
 ## Current operating state
 
-- Real paper runtime: `scripts/run_paper_runtime.py`
-- Canonical runtime model: deterministic cross-sectional relative-strength baseline
-- Evidence review: `scripts/review_baseline_runtime.py`
-- Historical replay: `scripts/replay_baseline.py`
-- Locked meta validation: `scripts/validate_meta_intelligence.py` (research-only)
-- `config/validated_meta_model.json` is optional research output and is not required
-	by the canonical paper runtime.
-- Live broker execution: **disabled**
-- Missing/invalid evidence: **fail closed / no trade**
-- Every evaluated baseline decision, including rejects, is persisted in
-	`data/decision_traces.sqlite3`; cycle summaries are appended to
-	`logs/baseline_runtime_summary.jsonl`.
-- Broad official NSE MIS quote scan with resource-bounded deep candle analysis
-- ₹30,000 default capital, ₹500 max risk/trade, ₹1,000 hard daily loss limit
-- Actual integer quantity sizing and actual-cost recheck before paper execution
-- Learning requires sufficient recent evidence and includes rejected opportunities
+- **Real paper runtime**: `scripts/run_paper_runtime.py`
+- **Canonical runtime decision model**: Deterministic cross-sectional relative-strength baseline engine (`decide_baseline()`).
+- **Evidence review**: `scripts/review_baseline_runtime.py`
+- **Historical replay**: `scripts/replay_baseline.py`
+- **Research-only meta validation**: `scripts/validate_meta_intelligence.py` (optional research path for training direct-return meta model artifacts).
+- **Meta artifact status**: `config/validated_meta_model.json` is an optional research output and is **not required** by the canonical paper runtime.
+- **Live broker execution**: **Disabled** (paper mode only).
+- **Missing/invalid evidence**: **Fail closed / NO TRADE**.
+- **Decision tracing**: Every evaluated decision (both qualified and rejected) is persisted in `data/decision_traces.sqlite3`; cycle summaries are appended to `logs/baseline_runtime_summary.jsonl`.
+- **Universe scan**: Broad official NSE MIS equity quote scan with resource-bounded deep minute-candle analysis.
+- **Risk bounds**: ₹30,000 default capital, ₹500 max risk per trade, ₹1,000 hard daily loss limit, max 3 open positions.
+- **Sizing & costs**: Actual integer share quantity sizing and statutory/slippage cost recheck before paper execution.
+- **Outcome learning**: Future-candle outcome labelling across both executed and rejected opportunities stored in `data/learning.sqlite3`.
 
 ## One authoritative decision engine
 
-The production decision authority is `daybagger.meta.stack.decide_meta()` as orchestrated by `DaybaggerPaperRuntime`. Legacy single-specialist execution engines are intentionally absent so replay/live evolution cannot drift into competing decision paths.
+The production decision authority for paper trading is `daybagger.decision.baseline.decide_baseline()` (or `daybagger.meta.stack.decide_meta()` when a validated meta spec is explicitly loaded) as orchestrated by `DaybaggerPaperRuntime`. Legacy or competing decision engines are intentionally absent so replay, paper trading, and research cannot drift into conflicting decision paths.
 
-## Economics
+## Economics & cost modeling
 
-Historical validation never invents unavailable bid/ask. It includes known Indian intraday statutory/brokerage costs plus the declared two-sided paper-slippage allowance. Live paper decisions additionally charge the **actual observed spread**, then re-check costs at the actual integer quantity before execution.
+Historical validation and paper trading never invent unavailable bid/ask quotes. Decisions account for official Indian intraday statutory/brokerage charges plus a declared two-sided paper-slippage allowance. Live paper decisions additionally charge the **actual observed bid/ask spread**, re-checking costs at the exact integer quantity before paper execution.
 
 ## Broad intelligence rule
 
-New sources may be collected immediately, but they influence trading only after timestamp-safe historical/OOS validation. Short-history sources such as current news are collected for forward learning until they earn weight. This keeps the system broad without manufacturing evidence.
+New data sources may be collected immediately, but they influence trading decisions only after timestamp-safe historical/out-of-sample validation. Short-history sources are collected for forward learning until they earn statistical weight.
 
 ## Local secrets
 
-`.env.local` and `.env.worker` are local-only and ignored by Git. Never commit credentials.
+`.env.local` and `.env.worker` are local-only and ignored by Git. Never commit credentials or API tokens.
 
-## Verification
+## Verification & Execution
 
 ```bash
 python scripts/check_foundation.py
 python scripts/check_runtime.py
 python scripts/check_validation.py
-pytest
 
-# During NSE market hours, with UPSTOX_ACCESS_TOKEN available:
+# During NSE market hours (09:15-15:30 IST), with UPSTOX_ACCESS_TOKEN set:
 python scripts/run_paper_runtime.py --once
 python scripts/review_baseline_runtime.py --json
 

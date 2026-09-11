@@ -13,7 +13,13 @@ from trading_contracts.schemas.v1 import Direction, MarketRegime, SignalCandidat
 class TestTelemetry(unittest.TestCase):
     @patch.dict("os.environ", {}, clear=True)
     def test_send_telegram_missing_credentials(self):
-        self.assertFalse(send_telegram("Test message"))
+        # OCI has credential fallback files. Isolate both the loader and network
+        # so this unit test can never send an external message.
+        with patch("trading_contracts.telemetry._load_env"), patch(
+            "urllib.request.urlopen"
+        ) as mock_urlopen:
+            self.assertFalse(send_telegram("Test message"))
+            mock_urlopen.assert_not_called()
 
     @patch("urllib.request.urlopen")
     @patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "mock_token", "TELEGRAM_CHAT_ID": "mock_chat"}, clear=True)

@@ -7,13 +7,19 @@ from daybagger.engine.risk_gate import RiskEvaluation
 
 
 class PaperOrderDesk:
-    def __init__(self, db_path: str = "/home/ubuntu/daybagger/data/paper_ledger.duckdb"):
-        if not Path("/home/ubuntu/daybagger").exists():
-            db_path = "data/paper_ledger.duckdb"
+    def __init__(self, db_path: str = None):
+        if db_path is None:
+            db_path = (
+                "/home/ubuntu/daybagger/data/paper_ledger.duckdb"
+                if Path("/home/ubuntu/daybagger").exists()
+                else "data/paper_ledger.duckdb"
+            )
         self.db_path = db_path
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        db_directory = os.path.dirname(db_path)
+        if db_directory:
+            os.makedirs(db_directory, exist_ok=True)
         self._init_db()
-        self.active_positions = {}
+        self.active_positions = self._load_open_positions()
 
     def _get_conn(self):
         return duckdb.connect(self.db_path)
@@ -38,25 +44,87 @@ class PaperOrderDesk:
                 )
             """)
 
+    def _load_open_positions(self):
+        """Restore every persisted open position after a listener restart."""
+        positions = {}
+        with self._get_conn() as conn:
+            rows = conn.execute("""
+                SELECT signal_id, instrument_id, direction, entry_price,
+                       stop_loss, target, quantity
+                FROM paper_ledger
+                WHERE status = 'OPEN'
+                ORDER BY timestamp, signal_id
+            """).fetchall()
+
+        for sig_id, instrument, direction, entry, stop, target, qty in rows:
+            try:
+                parsed_direction = Direction(direction)
+                if not instrument or entry is None or entry <= 0 or qty is None or qty <= 0:
+                    raise ValueError("invalid persisted position values")
+                if stop is None or target is None:
+                    raise ValueError("missing persisted exit levels")
+            except (TypeError, ValueError) as exc:
+                print(f"[LEDGER-ERROR] Cannot restore open position {sig_id}: {exc}")
+                continue
+
+            positions[sig_id] = {
+                "instrument": instrument,
+                "direction": parsed_direction,
+                "entry": entry,
+                "stop": stop,
+                "target": target,
+                "qty": qty,
+            }
+
+        if positions:
+            print(f"[LEDGER-RECOVERY] Restored {len(positions)} open paper positions")
+        return positions
+
     def record_signal(self, signal: SignalCandidate, eval_result: RiskEvaluation):
         status = "OPEN" if eval_result.approved else "REJECTED"
+        rejection_reason = eval_result.rejection_reason
+        quantity = eval_result.quantity
+
         with self._get_conn() as conn:
+            # Delivery/replay of the same signal must be a no-op. In particular,
+            # never let a replay overwrite a CLOSED row back to OPEN.
+            existing_status = conn.execute(
+                "SELECT status FROM paper_ledger WHERE signal_id = ?",
+                (signal.signal_id,),
+            ).fetchone()
+            if existing_status:
+                print(f"[SIGNAL-REPLAY] Ignored existing signal {signal.signal_id}")
+                return existing_status[0]
+
+            # Signal IDs are new on every publisher cycle, so admission must be
+            # guarded by the durable instrument state, not only by signal_id.
+            if status == "OPEN":
+                existing_open = conn.execute("""
+                    SELECT 1 FROM paper_ledger
+                    WHERE instrument_id = ? AND status = 'OPEN'
+                    LIMIT 1
+                """, (signal.instrument_id,)).fetchone()
+                if existing_open:
+                    status = "REJECTED"
+                    rejection_reason = "DUPLICATE_OPEN_POSITION"
+                    quantity = 0
+
             conn.execute("""
-                INSERT OR REPLACE INTO paper_ledger VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0.0, NULL)
+                INSERT INTO paper_ledger VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0.0, NULL)
             """, (
                 datetime.now(timezone.utc),
                 signal.signal_id,
                 signal.instrument_id,
                 signal.direction.value,
                 status,
-                eval_result.rejection_reason,
+                rejection_reason,
                 signal.entry_trigger or 0.0,
                 eval_result.stop_loss,
                 eval_result.target,
-                eval_result.quantity
+                quantity
             ))
 
-        if eval_result.approved:
+        if status == "OPEN":
             self.active_positions[signal.signal_id] = {
                 "instrument": signal.instrument_id,
                 "direction": signal.direction,
@@ -66,6 +134,10 @@ class PaperOrderDesk:
                 "qty": eval_result.quantity
             }
             print(f"[ORDER-OPENED] {signal.direction.value} {eval_result.quantity}x {signal.instrument_id} @ ₹{signal.entry_trigger:.2f}")
+        elif rejection_reason == "DUPLICATE_OPEN_POSITION":
+            print(f"[ORDER-REJECTED] {signal.instrument_id} | Reason: {rejection_reason}")
+
+        return status
 
     def evaluate_open_positions(self, current_prices: dict, current_ist_time: datetime):
         # Enforce 15:15 IST Square-Off

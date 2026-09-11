@@ -1,4 +1,5 @@
 import unittest
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -9,8 +10,25 @@ from daybagger.engine.order_desk import PaperOrderDesk
 from daybagger.engine.risk_gate import RiskDesk
 from daybagger.engine.risk_metadata import InstrumentRiskMetadata
 from trading_contracts.schemas.v1 import Direction, MarketRegime, SignalCandidate
+from conftest import UnmockedExternalNetworkAttempt
 
 class TestTelemetry(unittest.TestCase):
+    def test_suite_guard_blocks_unmocked_external_http(self):
+        with self.assertRaises(UnmockedExternalNetworkAttempt):
+            urllib.request.urlopen("https://example.invalid")
+
+    @patch.dict(
+        "os.environ",
+        {
+            "TELEGRAM_BOT_TOKEN": "test-only-token",
+            "TELEGRAM_CHAT_ID": "test-only-chat",
+        },
+        clear=True,
+    )
+    def test_send_telegram_cannot_reach_network_without_an_explicit_mock(self):
+        with self.assertRaises(UnmockedExternalNetworkAttempt):
+            send_telegram("Regression test: this must never leave the process")
+
     @patch.dict("os.environ", {}, clear=True)
     def test_send_telegram_missing_credentials(self):
         # OCI has credential fallback files. Isolate both the loader and network

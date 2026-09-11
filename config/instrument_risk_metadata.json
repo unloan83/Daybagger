@@ -1,0 +1,161 @@
+{
+  "correlation_method": "Pearson correlation of aligned daily log returns",
+  "correlation_source": "daily closes derived from point-in-time Upstox minute candles",
+  "correlations": {
+    "BHARTIARTL|AXISBANK": 0.09967459,
+    "BHARTIARTL|ITC": 0.29115605,
+    "BHARTIARTL|LT": 0.21842242,
+    "HDFCBANK|AXISBANK": 0.55051271,
+    "HDFCBANK|BHARTIARTL": 0.27030691,
+    "HDFCBANK|ICICIBANK": 0.53753296,
+    "HDFCBANK|ITC": 0.27586702,
+    "HDFCBANK|LT": 0.51149515,
+    "HDFCBANK|SBIN": 0.45942114,
+    "ICICIBANK|AXISBANK": 0.52243787,
+    "ICICIBANK|BHARTIARTL": 0.1769431,
+    "ICICIBANK|ITC": 0.17504412,
+    "ICICIBANK|LT": 0.41807145,
+    "ICICIBANK|SBIN": 0.3641471,
+    "INFY|AXISBANK": 0.12056279,
+    "INFY|BHARTIARTL": 0.07726662,
+    "INFY|HDFCBANK": 0.19309844,
+    "INFY|ICICIBANK": 0.05124551,
+    "INFY|ITC": 0.09304062,
+    "INFY|LT": 0.1712657,
+    "INFY|SBIN": 0.04534284,
+    "ITC|AXISBANK": 0.12987945,
+    "ITC|LT": 0.27610585,
+    "LT|AXISBANK": 0.5295646,
+    "RELIANCE|AXISBANK": 0.23516938,
+    "RELIANCE|BHARTIARTL": 0.27893106,
+    "RELIANCE|HDFCBANK": 0.41279008,
+    "RELIANCE|ICICIBANK": 0.16015576,
+    "RELIANCE|INFY": 0.15163697,
+    "RELIANCE|ITC": 0.25402361,
+    "RELIANCE|LT": 0.39368198,
+    "RELIANCE|SBIN": 0.37450292,
+    "RELIANCE|TCS": 0.14594178,
+    "SBIN|AXISBANK": 0.48680818,
+    "SBIN|BHARTIARTL": 0.21390478,
+    "SBIN|ITC": 0.14971026,
+    "SBIN|LT": 0.46169135,
+    "TCS|AXISBANK": 0.16096067,
+    "TCS|BHARTIARTL": 0.07707243,
+    "TCS|HDFCBANK": 0.20492312,
+    "TCS|ICICIBANK": 0.08929911,
+    "TCS|INFY": 0.7697595,
+    "TCS|ITC": 0.15783741,
+    "TCS|LT": 0.21096461,
+    "TCS|SBIN": 0.09653562
+  },
+  "generated_at_utc": "2026-09-11T11:31:28.363596+00:00",
+  "instrument_master_sha256": "255c72794ba832209cb72d26a81a2a6512bef52f0debbd193b59d95239583b0b",
+  "instruments": {
+    "AXISBANK": {
+      "isin": "INE238A01034",
+      "sector": "Bank"
+    },
+    "BHARTIARTL": {
+      "isin": "INE397D01024",
+      "sector": "Telecommunication"
+    },
+    "HDFCBANK": {
+      "isin": "INE040A01034",
+      "sector": "Bank"
+    },
+    "ICICIBANK": {
+      "isin": "INE090A01021",
+      "sector": "Bank"
+    },
+    "INFY": {
+      "isin": "INE009A01021",
+      "sector": "IT - Software"
+    },
+    "ITC": {
+      "isin": "INE154A01025",
+      "sector": "Tobacco"
+    },
+    "LT": {
+      "isin": "INE018A01030",
+      "sector": "Engineering"
+    },
+    "RELIANCE": {
+      "isin": "INE002A01018",
+      "sector": "Refineries"
+    },
+    "SBIN": {
+      "isin": "INE062A01020",
+      "sector": "Bank"
+    },
+    "TCS": {
+      "isin": "INE467B01029",
+      "sector": "IT - Software"
+    }
+  },
+  "lookback_from": "2025-07-28",
+  "lookback_to": "2026-09-07",
+  "minimum_overlap_days": 60,
+  "overlap_counts": {
+    "BHARTIARTL|AXISBANK": 275,
+    "BHARTIARTL|ITC": 275,
+    "BHARTIARTL|LT": 275,
+    "HDFCBANK|AXISBANK": 275,
+    "HDFCBANK|BHARTIARTL": 275,
+    "HDFCBANK|ICICIBANK": 275,
+    "HDFCBANK|ITC": 275,
+    "HDFCBANK|LT": 275,
+    "HDFCBANK|SBIN": 275,
+    "ICICIBANK|AXISBANK": 275,
+    "ICICIBANK|BHARTIARTL": 275,
+    "ICICIBANK|ITC": 275,
+    "ICICIBANK|LT": 275,
+    "ICICIBANK|SBIN": 275,
+    "INFY|AXISBANK": 275,
+    "INFY|BHARTIARTL": 275,
+    "INFY|HDFCBANK": 275,
+    "INFY|ICICIBANK": 275,
+    "INFY|ITC": 275,
+    "INFY|LT": 275,
+    "INFY|SBIN": 275,
+    "ITC|AXISBANK": 275,
+    "ITC|LT": 275,
+    "LT|AXISBANK": 275,
+    "RELIANCE|AXISBANK": 275,
+    "RELIANCE|BHARTIARTL": 275,
+    "RELIANCE|HDFCBANK": 275,
+    "RELIANCE|ICICIBANK": 275,
+    "RELIANCE|INFY": 275,
+    "RELIANCE|ITC": 275,
+    "RELIANCE|LT": 275,
+    "RELIANCE|SBIN": 275,
+    "RELIANCE|TCS": 275,
+    "SBIN|AXISBANK": 275,
+    "SBIN|BHARTIARTL": 275,
+    "SBIN|ITC": 275,
+    "SBIN|LT": 275,
+    "TCS|AXISBANK": 275,
+    "TCS|BHARTIARTL": 275,
+    "TCS|HDFCBANK": 275,
+    "TCS|ICICIBANK": 275,
+    "TCS|INFY": 275,
+    "TCS|ITC": 275,
+    "TCS|LT": 275,
+    "TCS|SBIN": 275
+  },
+  "schema": "daybagger-instrument-risk-metadata-v1",
+  "sector_cache_sha256": "7177de25b93724d56b770d56698b4ea8a3ee3f533af14913b32a1268aefa0ed4",
+  "sector_source": "Upstox company profile cache keyed by official NSE ISIN",
+  "session_counts": {
+    "AXISBANK": 276,
+    "BHARTIARTL": 276,
+    "HDFCBANK": 276,
+    "ICICIBANK": 276,
+    "INFY": 276,
+    "ITC": 276,
+    "LT": 276,
+    "RELIANCE": 276,
+    "SBIN": 276,
+    "TCS": 276
+  },
+  "universe_source": "Upstox official NSE instrument master"
+}

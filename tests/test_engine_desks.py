@@ -6,11 +6,24 @@ import duckdb
 from trading_contracts.schemas.v1 import Direction, MarketRegime, SignalCandidate
 from daybagger.engine.risk_gate import RiskDesk, RiskEvaluation
 from daybagger.engine.order_desk import PaperOrderDesk
+from daybagger.engine.risk_metadata import InstrumentRiskMetadata
 
 
 class TestEngineDesks(unittest.TestCase):
     def setUp(self):
         self.risk_desk = RiskDesk(capital=100000.0, risk_per_trade_bps=50.0)
+        self.risk_metadata = InstrumentRiskMetadata.from_profiles({
+            "INFY": ("INE009A01021", "IT - Software"),
+            "RELIANCE": ("INE002A01018", "Refineries"),
+            "TCS": ("INE467B01029", "IT - Software"),
+        }, correlations={
+            ("INFY", "RELIANCE"): 0.25,
+            ("INFY", "TCS"): 0.82,
+            ("RELIANCE", "TCS"): 0.30,
+        })
+
+    def _desk(self, db_path):
+        return PaperOrderDesk(db_path=db_path, risk_metadata=self.risk_metadata)
 
     def test_no_trade_direction_rejected(self):
         now = datetime.now(timezone.utc)
@@ -52,7 +65,7 @@ class TestEngineDesks(unittest.TestCase):
     def test_paper_order_desk_duckdb(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             db_path = str(Path(tmp_dir) / "test_ledger.duckdb")
-            desk = PaperOrderDesk(db_path=db_path)
+            desk = self._desk(db_path)
             now = datetime.now(timezone.utc)
             sig = SignalCandidate(
                 signal_id="sig-100",
@@ -96,13 +109,13 @@ class TestEngineDesks(unittest.TestCase):
     def test_duplicate_instrument_is_rejected_persistently(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             db_path = str(Path(tmp_dir) / "test_ledger.duckdb")
-            first_desk = PaperOrderDesk(db_path=db_path)
+            first_desk = self._desk(db_path)
             first = self._approved_signal("sig-first")
             first_desk.record_signal(first, self.risk_desk.evaluate(first))
 
             # A fresh desk simulates a systemd restart. It must recover the
             # position and reject a new UUID for the same instrument.
-            restarted_desk = PaperOrderDesk(db_path=db_path)
+            restarted_desk = self._desk(db_path)
             duplicate = self._approved_signal("sig-duplicate", direction=Direction.SHORT)
             status = restarted_desk.record_signal(
                 duplicate, self.risk_desk.evaluate(duplicate)
@@ -126,7 +139,7 @@ class TestEngineDesks(unittest.TestCase):
     def test_signal_replay_does_not_overwrite_existing_row(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             db_path = str(Path(tmp_dir) / "test_ledger.duckdb")
-            desk = PaperOrderDesk(db_path=db_path)
+            desk = self._desk(db_path)
             signal = self._approved_signal("sig-replay")
             evaluation = self.risk_desk.evaluate(signal)
             self.assertEqual(desk.record_signal(signal, evaluation), "OPEN")
@@ -148,12 +161,12 @@ class TestEngineDesks(unittest.TestCase):
     def test_recovered_position_can_exit_after_restart(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             db_path = str(Path(tmp_dir) / "test_ledger.duckdb")
-            desk = PaperOrderDesk(db_path=db_path)
+            desk = self._desk(db_path)
             signal = self._approved_signal("sig-recovered")
             evaluation = self.risk_desk.evaluate(signal)
             desk.record_signal(signal, evaluation)
 
-            restarted_desk = PaperOrderDesk(db_path=db_path)
+            restarted_desk = self._desk(db_path)
             restarted_desk.evaluate_open_positions(
                 {"INFY": evaluation.target},
                 datetime.now(timezone.utc),
@@ -183,7 +196,7 @@ class TestEngineDesks(unittest.TestCase):
                     )
                 """)
 
-            PaperOrderDesk(db_path=db_path)
+            self._desk(db_path)
             with duckdb.connect(db_path, read_only=True) as conn:
                 columns = {
                     row[1] for row in conn.execute(
@@ -191,9 +204,37 @@ class TestEngineDesks(unittest.TestCase):
                     ).fetchall()
                 }
             self.assertTrue(
-                {"exit_timestamp", "hold_duration_sec", "friction_total"}
+                {
+                    "exit_timestamp", "hold_duration_sec", "friction_total",
+                    "gross_pnl", "modeled_costs", "modeled_slippage", "net_pnl",
+                    "sector", "risk_amount", "entry_notional",
+                }
                 <= columns
             )
+
+    def test_close_persists_separate_gross_cost_slippage_and_net(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = str(Path(tmp_dir) / "accounting.duckdb")
+            desk = self._desk(db_path)
+            signal = self._approved_signal("sig-accounting", instrument_id="RELIANCE")
+            evaluation = self.risk_desk.evaluate(signal)
+            self.assertEqual(desk.record_signal(signal, evaluation), "OPEN")
+            desk.evaluate_open_positions(
+                {"RELIANCE": evaluation.target},
+                datetime.now(timezone.utc),
+            )
+            with desk._get_conn() as conn:
+                row = conn.execute("""
+                    SELECT pnl, gross_pnl, modeled_costs, modeled_slippage,
+                           friction_total, net_pnl
+                    FROM paper_ledger WHERE signal_id = 'sig-accounting'
+                """).fetchone()
+            legacy_gross, gross, costs, slippage, friction, net = row
+            self.assertEqual(legacy_gross, gross)
+            self.assertGreater(costs, 0)
+            self.assertGreater(slippage, 0)
+            self.assertAlmostEqual(friction, costs + slippage, places=6)
+            self.assertAlmostEqual(net, gross - friction, places=6)
 
 
 if __name__ == "__main__":

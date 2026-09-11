@@ -21,9 +21,21 @@ class CostBreakdown:
         return float(self.total / avg * Decimal("10000"))
 
 
+@dataclass(frozen=True, slots=True)
+class ModeledTradeFriction:
+    statutory_and_brokerage: Decimal
+    slippage: Decimal
+    total: Decimal
+
+
 class IndiaEquityIntradayCostModel:
     """
-    NSE cash intraday cost schedule verified against Upstox pricing on 2026-09-02.
+    NSE cash intraday cost schedule verified against Upstox pricing on 2026-09-11.
+
+    Reference: https://upstox.com/brokerage-charges/
+    From March 2026, Upstox publishes NSE cash transaction/IPFT charges as
+    0.00307% per side. GST applies to brokerage plus transaction/IPFT charges;
+    it is not applied to STT, stamp duty, or SEBI turnover fees here.
 
     Rates are explicit and isolated here so they can be updated without touching
     strategy/model code.
@@ -69,7 +81,7 @@ class IndiaEquityIntradayCostModel:
         exchange = (buy_turnover + sell_turnover) * self.nse_transaction_rate
         sebi = (buy_turnover + sell_turnover) * self.sebi_rate
         stamp = buy_turnover * self.stamp_buy_rate
-        gst = (brokerage + exchange + sebi) * self.gst_rate
+        gst = (brokerage + exchange) * self.gst_rate
         total = brokerage + stt + exchange + sebi + stamp + gst
 
         return CostBreakdown(
@@ -123,6 +135,39 @@ class IndiaEquityIntradayCostModel:
                 for spread in spread_scenarios_bps
             }
         return result
+
+    def estimate_trade_friction(
+        self,
+        *,
+        entry_price: Decimal,
+        exit_price: Decimal,
+        quantity: int,
+        slippage_bps_per_side: float,
+    ) -> ModeledTradeFriction:
+        """Canonical paper/backtest round-trip friction for one completed trade."""
+        if entry_price <= 0 or exit_price <= 0:
+            raise ValueError("entry/exit price must be positive")
+        if quantity <= 0:
+            raise ValueError("quantity must be positive")
+        if slippage_bps_per_side < 0:
+            raise ValueError("slippage_bps_per_side cannot be negative")
+
+        entry_turnover = entry_price * Decimal(quantity)
+        exit_turnover = exit_price * Decimal(quantity)
+        costs = self.estimate_round_trip(
+            buy_turnover=entry_turnover,
+            sell_turnover=exit_turnover,
+        )
+        slippage = _money(
+            (entry_turnover + exit_turnover)
+            * Decimal(str(slippage_bps_per_side))
+            / Decimal("10000")
+        )
+        return ModeledTradeFriction(
+            statutory_and_brokerage=costs.total,
+            slippage=slippage,
+            total=_money(costs.total + slippage),
+        )
 
 
 def _money(value: Decimal) -> Decimal:

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import tempfile
 import unittest
 from pathlib import Path
+import duckdb
 from trading_contracts.schemas.v1 import Direction, MarketRegime, SignalCandidate
 from daybagger.engine.risk_gate import RiskDesk, RiskEvaluation
 from daybagger.engine.order_desk import PaperOrderDesk
@@ -107,7 +108,7 @@ class TestEngineDesks(unittest.TestCase):
                 duplicate, self.risk_desk.evaluate(duplicate)
             )
 
-            self.assertEqual(status, "REJECTED")
+            self.assertEqual(status, "DUPLICATE_DB_LOCKED")
             self.assertIn("sig-first", restarted_desk.active_positions)
             self.assertNotIn("sig-duplicate", restarted_desk.active_positions)
             with restarted_desk._get_conn() as conn:
@@ -119,7 +120,7 @@ class TestEngineDesks(unittest.TestCase):
                     SELECT count(*) FROM paper_ledger
                     WHERE instrument_id = 'INFY' AND status = 'OPEN'
                 """).fetchone()[0]
-            self.assertEqual(row, ("REJECTED", "DUPLICATE_OPEN_POSITION", 0))
+            self.assertIsNone(row)
             self.assertEqual(open_count, 1)
 
     def test_signal_replay_does_not_overwrite_existing_row(self):
@@ -160,10 +161,39 @@ class TestEngineDesks(unittest.TestCase):
             self.assertNotIn("sig-recovered", restarted_desk.active_positions)
             with restarted_desk._get_conn() as conn:
                 row = conn.execute("""
-                    SELECT status, exit_reason FROM paper_ledger
+                    SELECT status, exit_reason, exit_timestamp, hold_duration_sec
+                    FROM paper_ledger
                     WHERE signal_id = 'sig-recovered'
                 """).fetchone()
-            self.assertEqual(row, ("CLOSED", "TARGET_HIT"))
+            self.assertEqual(row[:2], ("CLOSED", "TARGET_HIT"))
+            self.assertIsNotNone(row[2])
+            self.assertGreaterEqual(row[3], 0.0)
+
+    def test_legacy_ledger_schema_is_migrated(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = str(Path(tmp_dir) / "legacy_ledger.duckdb")
+            with duckdb.connect(db_path) as conn:
+                conn.execute("""
+                    CREATE TABLE paper_ledger (
+                        timestamp TIMESTAMP, signal_id VARCHAR PRIMARY KEY,
+                        instrument_id VARCHAR, direction VARCHAR, status VARCHAR,
+                        rejection_reason VARCHAR, entry_price DOUBLE,
+                        exit_price DOUBLE, stop_loss DOUBLE, target DOUBLE,
+                        quantity INTEGER, pnl DOUBLE, exit_reason VARCHAR
+                    )
+                """)
+
+            PaperOrderDesk(db_path=db_path)
+            with duckdb.connect(db_path, read_only=True) as conn:
+                columns = {
+                    row[1] for row in conn.execute(
+                        "PRAGMA table_info('paper_ledger')"
+                    ).fetchall()
+                }
+            self.assertTrue(
+                {"exit_timestamp", "hold_duration_sec", "friction_total"}
+                <= columns
+            )
 
 
 if __name__ == "__main__":

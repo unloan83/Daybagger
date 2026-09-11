@@ -15,6 +15,24 @@ class RiskEvaluation:
     target: float
 
 
+def validate_signal_geometry(signal: SignalCandidate) -> Optional[tuple[bool, str]]:
+    """Return a deterministic rejection when entry/stop geometry is invalid."""
+    if signal.direction == Direction.NO_TRADE:
+        return False, "NO_TRADE_DIRECTION"
+
+    entry = signal.entry_trigger
+    stop = signal.invalidation_level
+    if entry is None or stop is None:
+        return False, "MISSING_PRICE_OR_INVALIDATION"
+    if entry <= 0 or stop <= 0:
+        return False, "NON_POSITIVE_PRICE_OR_INVALIDATION"
+    if signal.direction == Direction.LONG and stop >= entry:
+        return False, "GEOMETRY_FAULT_LONG"
+    if signal.direction == Direction.SHORT and stop <= entry:
+        return False, "GEOMETRY_FAULT_SHORT"
+    return None
+
+
 class RiskDesk:
     def __init__(self, capital: float = 100000.0, risk_per_trade_bps: float = 50.0):
         self.capital = capital
@@ -31,13 +49,14 @@ class RiskDesk:
         return slippage + stt + exchange_turnover + sebi_charges + stamp_duty + gst_regulatory
 
     def evaluate(self, signal: SignalCandidate) -> RiskEvaluation:
-        if signal.direction == Direction.NO_TRADE:
-            return RiskEvaluation(False, "NO_TRADE_DIRECTION", 0, 0, 0, 0, 0)
+        fault = validate_signal_geometry(signal)
+        if fault:
+            approved, reason = fault
+            return RiskEvaluation(approved, reason, 0, 0.0, 0.0, 0.0, 0.0)
 
-        price = signal.entry_trigger or 0.0
-        stop = signal.invalidation_level or 0.0
-        if price <= 0 or stop <= 0:
-            return RiskEvaluation(False, "INVALID_PRICE_OR_STOP", 0, 0, 0, 0, 0)
+        # Geometry validation above establishes positive, non-null prices.
+        price = signal.entry_trigger
+        stop = signal.invalidation_level
 
         risk_distance = abs(price - stop)
         if risk_distance < 0.10:

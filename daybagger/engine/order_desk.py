@@ -100,7 +100,9 @@ class PaperOrderDesk:
                     gross_pnl DOUBLE,
                     modeled_costs DOUBLE,
                     modeled_slippage DOUBLE,
-                    net_pnl DOUBLE
+                    net_pnl DOUBLE,
+                    slippage_bps_per_side DOUBLE,
+                    cohort VARCHAR
                 )
             """)
             migrations = {
@@ -114,6 +116,8 @@ class PaperOrderDesk:
                 "modeled_costs": "DOUBLE",
                 "modeled_slippage": "DOUBLE",
                 "net_pnl": "DOUBLE",
+                "slippage_bps_per_side": "DOUBLE",
+                "cohort": "VARCHAR",
             }
             for column, column_type in migrations.items():
                 conn.execute(
@@ -217,6 +221,7 @@ class PaperOrderDesk:
                 SELECT signal_id, instrument_id, direction, entry_price,
                        stop_loss, target, quantity, timestamp, friction_total,
                        sector, risk_amount, entry_notional
+                       , slippage_bps_per_side, cohort
                 FROM paper_ledger
                 WHERE status = 'OPEN'
                 ORDER BY timestamp, signal_id
@@ -226,6 +231,7 @@ class PaperOrderDesk:
             (
                 sig_id, instrument, direction, entry, stop, target, qty,
                 opened_at, friction, sector, risk_amount, entry_notional,
+                slippage_bps_per_side, cohort,
             ) = row
             try:
                 parsed_direction = Direction(direction)
@@ -258,6 +264,12 @@ class PaperOrderDesk:
                 "sector": resolved_sector,
                 "risk_amount": risk_amount or abs(entry - stop) * qty,
                 "entry_notional": entry_notional or entry * qty,
+                "slippage_bps_per_side": (
+                    self.slippage_bps_per_side
+                    if slippage_bps_per_side is None
+                    else slippage_bps_per_side
+                ),
+                "cohort": cohort or "STANDARD",
             }
 
         if positions:
@@ -310,6 +322,12 @@ class PaperOrderDesk:
                 "sector": profile.sector,
                 "risk_amount": abs(signal.entry_trigger - eval_result.stop_loss) * quantity,
                 "entry_notional": signal.entry_trigger * quantity,
+                "slippage_bps_per_side": (
+                    self.slippage_bps_per_side
+                    if signal.slippage_bps_per_side is None
+                    else signal.slippage_bps_per_side
+                ),
+                "cohort": signal.cohort,
             }
             print(
                 f"[ORDER-OPENED] {signal.direction.value} {quantity}x "
@@ -401,11 +419,16 @@ class PaperOrderDesk:
                         (signal.instrument_id,),
                     )
                 else:
+                    signal_slippage = (
+                        self.slippage_bps_per_side
+                        if signal.slippage_bps_per_side is None
+                        else signal.slippage_bps_per_side
+                    )
                     friction = self.cost_model.estimate_trade_friction(
                         entry_price=Decimal(str(signal.entry_trigger)),
                         exit_price=Decimal(str(signal.entry_trigger)),
                         quantity=quantity,
-                        slippage_bps_per_side=self.slippage_bps_per_side,
+                        slippage_bps_per_side=signal_slippage,
                     )
                     friction_total = float(friction.total)
 
@@ -417,9 +440,9 @@ class PaperOrderDesk:
                     target, quantity, pnl, exit_reason, exit_timestamp,
                     hold_duration_sec, friction_total, sector, risk_amount,
                     entry_notional, gross_pnl, modeled_costs,
-                    modeled_slippage, net_pnl
+                    modeled_slippage, net_pnl, slippage_bps_per_side, cohort
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0.0, NULL,
-                          NULL, NULL, ?, ?, ?, ?, NULL, NULL, NULL, NULL)
+                          NULL, NULL, ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?, ?)
             """, (
                 opened_at,
                 signal.signal_id,
@@ -435,6 +458,12 @@ class PaperOrderDesk:
                 profile.sector if profile else None,
                 candidate_risk if approved else 0.0,
                 candidate_notional if approved else 0.0,
+                (
+                    self.slippage_bps_per_side
+                    if signal.slippage_bps_per_side is None
+                    else signal.slippage_bps_per_side
+                ),
+                signal.cohort,
             ))
             conn.execute("COMMIT")
             return status, final_reason, quantity, friction_total
@@ -513,7 +542,7 @@ class PaperOrderDesk:
                     entry_price=Decimal(str(pos["entry"])),
                     exit_price=Decimal(str(curr)),
                     quantity=pos["qty"],
-                    slippage_bps_per_side=self.slippage_bps_per_side,
+                    slippage_bps_per_side=pos["slippage_bps_per_side"],
                 )
                 net_pnl = gross_pnl - float(friction.total)
                 exit_timestamp = datetime.now(timezone.utc)

@@ -142,7 +142,9 @@ class RiskDesk:
         self.max_risk_inr = capital * (risk_per_trade_bps / 10000.0)
         self.slippage_bps_per_side = slippage_bps_per_side
 
-    def calculate_nse_friction(self, price: float) -> float:
+    def calculate_nse_friction(
+        self, price: float, slippage_bps_per_side: float | None = None
+    ) -> float:
         # The same conservative percentage regime used by paper accounting and
         # historical validation. Actual quantity-level costs are recomputed on exit.
         from daybagger.integration.costs import IndiaEquityIntradayCostModel
@@ -150,7 +152,11 @@ class RiskDesk:
         model = IndiaEquityIntradayCostModel()
         total_bps = (
             model.conservative_linear_round_trip_bps()
-            + 2.0 * self.slippage_bps_per_side
+            + 2.0 * (
+                self.slippage_bps_per_side
+                if slippage_bps_per_side is None
+                else slippage_bps_per_side
+            )
         )
         return price * total_bps / 10000.0
 
@@ -170,7 +176,9 @@ class RiskDesk:
 
         target = price + (1.5 * risk_distance) if signal.direction == Direction.LONG else price - (1.5 * risk_distance)
         expected_edge = abs(target - price)
-        friction = self.calculate_nse_friction(price)
+        friction = self.calculate_nse_friction(
+            price, signal.slippage_bps_per_side
+        )
 
         if expected_edge < (2.5 * friction):
             return RiskEvaluation(False, f"FRICTION_HURDLE_FAILED (Edge: {expected_edge:.2f} < 2.5x Cost: {2.5*friction:.2f})", 0, friction, expected_edge, stop, target)

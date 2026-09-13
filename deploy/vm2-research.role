@@ -1,0 +1,5 @@
+DAYBAGGER_VM_ROLE=research
+ALLOW_PRODUCTION_SERVICES=false
+ALLOW_RESEARCH_WORKLOADS=true
+ALLOW_LIVE_CREDENTIALS=false
+DATA_FLOW=result_files_and_recommendations_out_only

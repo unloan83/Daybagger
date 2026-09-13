@@ -1,0 +1,21 @@
+[Unit]
+Description=Daybagger OCI positive-cost lockdown guard
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/daybagger/billing-guard.env
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/daybagger-research
+ExecStart=/opt/daybagger-admin/venv/bin/python -m daybagger.operations.oci_billing_guard --config /etc/daybagger/billing-guard.env
+Environment=PYTHONPATH=/opt/daybagger-research
+Environment=PYTHONDONTWRITEBYTECODE=1
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/daybagger-billing-guard
+
+[Install]
+WantedBy=multi-user.target

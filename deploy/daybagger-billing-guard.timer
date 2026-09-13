@@ -1,0 +1,12 @@
+[Unit]
+Description=Check OCI tenancy cost every 15 minutes
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=daybagger-billing-guard.service
+
+[Install]
+WantedBy=timers.target

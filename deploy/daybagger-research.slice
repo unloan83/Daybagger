@@ -1,0 +1,7 @@
+[Unit]
+Description=Daybagger research and backtest workload boundary
+
+[Slice]
+CPUQuota=180%
+MemoryMax=5G
+TasksMax=2048

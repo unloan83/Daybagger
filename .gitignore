@@ -13,3 +13,6 @@ data/historical_cache/
 logs/*.log
 logs/*.lock
 logs/*.flag
+.deployed_commit
+data/reconciled_cpr_oi/
+research/evidence/*.json

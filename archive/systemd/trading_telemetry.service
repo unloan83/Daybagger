@@ -1,0 +1,19 @@
+[Unit]
+Description=Trading System Telemetry & 30m Telegram Dispatcher
+After=network.target daybagger.service dualengine.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/daybagger
+EnvironmentFile=/home/ubuntu/.trading_env
+ExecStart=/home/ubuntu/quant_env/bin/python -m daybagger.engine.telemetry_daemon
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/ubuntu/trading_contracts:/home/ubuntu/daybagger
+MemoryMax=100M
+CPUQuota=20%
+
+[Install]
+WantedBy=multi-user.target

@@ -4,7 +4,7 @@ There is exactly **one production decision path** for paper trading.
 
 1. **Official observations** — NSE/Upstox data only; missing/invalid evidence fails closed (`NO_TRADE`).
 2. **Canonical paper baseline** — `DaybaggerPaperRuntime` ranks timestamp-aligned cross-sectional residual strength versus NIFTY and sector, gated by market regime, relative volume, executable spread, statutory cost, and paper slippage (`decide_baseline()`). It does not require a pre-trained meta model artifact.
-3. **Research-only meta path** — `scripts/validate_meta_intelligence.py` may produce optional validated artifacts (`ForestRegressorSpec` / `config/validated_meta_model.json`), but it is not a runtime prerequisite.
+3. **Research-only meta path** — superseded meta experiments are preserved under `archive/scripts/`; they are not runtime prerequisites.
 4. **Broad intelligence** — market, sector, stock, cross-section, institutional/flow, volatility and executable microstructure; additional sources are evidence-gated.
 5. **Specialist evidence** — validated probabilistic base models, never independent production engines.
 6. **Net-edge gate** — subtract conservative statutory cost, real live spread, and declared two-sided execution slippage.

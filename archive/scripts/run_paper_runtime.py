@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -11,25 +10,17 @@ from zoneinfo import ZoneInfo
 import fcntl
 import subprocess
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from daybagger.bootstrap import verify_golden_rules
 from daybagger.config import load_settings
 from daybagger.data.upstox import UpstoxMarketData
 from daybagger.decision.baseline import BASELINE_MODEL_ID
-from daybagger.runtime.local_env import read_env_value
+from daybagger.runtime.local_env import load_access_token
 from daybagger.runtime.paper_runtime import DaybaggerPaperRuntime, PaperRuntimeError
 from daybagger.runtime.summary import append_runtime_summary
 from daybagger.runtime.telegram import send_telegram_quietly
-
-
-def load_access_token(repo_root: Path) -> str:
-    token = os.getenv("UPSTOX_ACCESS_TOKEN", "").strip()
-    if token:
-        return token
-    return read_env_value(repo_root / ".env.local", "UPSTOX_ACCESS_TOKEN").strip()
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Daybagger Paper Runtime")
@@ -159,4 +150,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

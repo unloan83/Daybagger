@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -21,3 +22,11 @@ def read_env_value(path: Path, key: str) -> str:
     if len(matches) > 1:
         raise RuntimeError(f"multiple {key} entries found in {path}")
     return matches[0] if matches else ""
+
+
+def load_access_token(repo_root: Path) -> str:
+    """Load the Upstox token from the process environment, then local dotenv."""
+    token = os.getenv("UPSTOX_ACCESS_TOKEN", "").strip()
+    if token:
+        return token
+    return read_env_value(repo_root / ".env.local", "UPSTOX_ACCESS_TOKEN").strip()

@@ -8,7 +8,7 @@ from daybagger.domain import Direction, ModelOpinion
 from daybagger.operations.outcomes import OutcomeLearner
 from daybagger.operations.readiness import run_readiness
 from daybagger.meta.stack import load_meta_spec
-from scripts.run_paper_runtime import load_access_token
+from daybagger.runtime.local_env import load_access_token
 
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=timezone.utc)

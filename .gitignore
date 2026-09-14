@@ -8,11 +8,12 @@ __pycache__/
 .pytest_cache/
 data/*.sqlite3
 data/*.duckdb
+data/depth_history.jsonl
+data/historical_oi*.json
 data/sector_cache.json
 data/historical_cache/
-logs/*.log
-logs/*.lock
-logs/*.flag
+logs/
 .deployed_commit
 data/reconciled_cpr_oi/
 research/evidence/*.json
+research/evidence/**/*.json

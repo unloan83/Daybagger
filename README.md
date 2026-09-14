@@ -8,9 +8,8 @@ Daybagger is a **paper-only Indian-equity intraday trading system** built around
 
 - **Real paper runtime**: `dualengine.service` publishes evidence-backed candidates to `daybagger.service` (`daybagger.engine.signal_listener`).
 - **Canonical runtime decision model**: DualEngine CPR/OI paper candidate evaluation followed by Daybagger risk and paper execution.
-- **Evidence review**: `scripts/review_baseline_runtime.py`
-- **Historical replay**: `scripts/replay_baseline.py`
-- **Research-only meta validation**: `scripts/validate_meta_intelligence.py` (optional research path for training direct-return meta model artifacts).
+- **Historical validation**: `scripts/run_reconciled_cpr_oi_backtest.py`.
+- **Superseded experiments**: preserved under `archive/scripts/`; none are production entry points.
 - **Meta artifact status**: `config/validated_meta_model.json` is an optional research output and is **not required** by the canonical paper runtime.
 - **Live broker execution**: **Disabled** (paper mode only).
 - **Missing/invalid evidence**: **Fail closed / NO TRADE**.
@@ -46,10 +45,10 @@ python scripts/check_validation.py
 # During NSE market hours (09:15-15:30 IST), with UPSTOX_ACCESS_TOKEN set,
 # production is operated only through dualengine.service and daybagger.service.
 
-# Research replay uses genuine historical candles and a declared spread scenario:
-python scripts/replay_baseline.py --from-date 2026-08-01 --to-date 2026-09-02 --spread-bps 4
+# Reconciled CPR/OI validation:
+python scripts/run_reconciled_cpr_oi_backtest.py --help
 ```
 
-The former `scripts/run_paper_runtime.py` path is retained only for research and
-must not be installed or enabled as a systemd runtime. `goldenrules.txt` remains
-the permanent design authority.
+The former paper runtime and superseded research scripts are preserved under
+`archive/` and must not be installed as services. `goldenrules.txt` remains the
+permanent design authority.

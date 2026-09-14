@@ -6,4 +6,4 @@
 - **Tests:** `tests/`; canonical verification is the CI command sequence in `.github/workflows/ci.yml`.
 - **Configuration and deployment:** `config/` and `deploy/`; the latter contains only current supporting research/billing assets, not production trading services.
 - **Generated state:** `data/`, `logs/`, and `research/evidence/`; runtime outputs are ignored by Git.
-- **Archived:** `archive/scripts/` holds superseded experiments/runtime entry points and `archive/systemd/` holds removed service definitions.
+- **Archived:** `archive/scripts/` holds superseded experiments/runtime entry points and `archive/systemd/` holds removed service definitions, including the exact deployed variants.

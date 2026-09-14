@@ -6,8 +6,8 @@ Daybagger is a **paper-only Indian-equity intraday trading system** built around
 
 ## Current operating state
 
-- **Real paper runtime**: `scripts/run_paper_runtime.py`
-- **Canonical runtime decision model**: Deterministic cross-sectional relative-strength baseline engine (`decide_baseline()`).
+- **Real paper runtime**: `dualengine.service` publishes evidence-backed candidates to `daybagger.service` (`daybagger.engine.signal_listener`).
+- **Canonical runtime decision model**: DualEngine CPR/OI paper candidate evaluation followed by Daybagger risk and paper execution.
 - **Evidence review**: `scripts/review_baseline_runtime.py`
 - **Historical replay**: `scripts/replay_baseline.py`
 - **Research-only meta validation**: `scripts/validate_meta_intelligence.py` (optional research path for training direct-return meta model artifacts).
@@ -43,12 +43,13 @@ python scripts/check_foundation.py
 python scripts/check_runtime.py
 python scripts/check_validation.py
 
-# During NSE market hours (09:15-15:30 IST), with UPSTOX_ACCESS_TOKEN set:
-python scripts/run_paper_runtime.py --once
-python scripts/review_baseline_runtime.py --json
+# During NSE market hours (09:15-15:30 IST), with UPSTOX_ACCESS_TOKEN set,
+# production is operated only through dualengine.service and daybagger.service.
 
 # Research replay uses genuine historical candles and a declared spread scenario:
 python scripts/replay_baseline.py --from-date 2026-08-01 --to-date 2026-09-02 --spread-bps 4
 ```
 
-`goldenrules.txt` remains the permanent design authority.
+The former `scripts/run_paper_runtime.py` path is retained only for research and
+must not be installed or enabled as a systemd runtime. `goldenrules.txt` remains
+the permanent design authority.

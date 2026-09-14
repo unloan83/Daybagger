@@ -68,6 +68,12 @@ It will:
 16. **Always-Free First**
     Architecture must remain within free/always-free resources wherever feasible. Avoid paid infrastructure or data dependencies unless explicitly approved. Use OCI/GitHub/Upstox/free sources efficiently.
 
+17. **No Silent Operational Exceptions**
+    Every caught operational exception must be logged with its concrete exception type and message before failing closed, retrying or returning a fallback. Generic labels such as `MISSING_DATA` must supplement, never replace, the underlying error evidence.
+
+18. **Verify Real API Behavior**
+    Before production relies on an external API endpoint, field or authentication behavior, verify it against an actual response and retain a secret-free contract test for the observed response shape. Documentation alone is insufficient evidence.
+
 ## Daybagger Decision Flow
 
 ALL AVAILABLE INTELLIGENCE

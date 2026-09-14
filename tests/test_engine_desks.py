@@ -169,7 +169,7 @@ class TestEngineDesks(unittest.TestCase):
             restarted_desk = self._desk(db_path)
             restarted_desk.evaluate_open_positions(
                 {"INFY": evaluation.target},
-                datetime.now(timezone.utc),
+                datetime.now(timezone.utc).replace(hour=6, minute=0),
             )
             self.assertNotIn("sig-recovered", restarted_desk.active_positions)
             with restarted_desk._get_conn() as conn:
@@ -235,6 +235,34 @@ class TestEngineDesks(unittest.TestCase):
             self.assertGreater(slippage, 0)
             self.assertAlmostEqual(friction, costs + slippage, places=6)
             self.assertAlmostEqual(net, gross - friction, places=6)
+
+    def test_persisted_same_day_net_loss_hard_stops_new_entry(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = str(Path(tmp_dir) / "daily-loss.duckdb")
+            desk = self._desk(db_path)
+            now = datetime.now(timezone.utc)
+            with desk._get_conn() as conn:
+                conn.execute("""
+                    INSERT INTO paper_ledger (
+                        timestamp, signal_id, instrument_id, direction, status,
+                        entry_price, exit_price, stop_loss, target, quantity,
+                        pnl, exit_reason, exit_timestamp, friction_total,
+                        gross_pnl, modeled_costs, modeled_slippage, net_pnl
+                    ) VALUES (?, 'loss', 'RELIANCE', 'LONG', 'CLOSED',
+                              100, 90, 95, 110, 100, -1000.01, 'STOP_LOSS_HIT',
+                              ?, 0, -1000.01, 0, 0, -1000.01)
+                """, (now, now))
+
+            signal = self._approved_signal("blocked-after-loss", "INFY")
+            status = desk.record_signal(signal, self.risk_desk.evaluate(signal))
+
+            self.assertEqual(status, "REJECTED")
+            with desk._get_conn() as conn:
+                reason = conn.execute("""
+                    SELECT rejection_reason FROM paper_ledger
+                    WHERE signal_id = 'blocked-after-loss'
+                """).fetchone()[0]
+            self.assertEqual(reason, "DAILY_LOSS_LIMIT_REACHED")
 
 
 if __name__ == "__main__":
